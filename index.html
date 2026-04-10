@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Калькулятор себестоимости авто</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div class="header__text">
+        <p class="eyebrow">Импорт из Японии · смета</p>
+        <h1>Калькулятор себестоимости</h1>
+        <p class="lede">
+          Расчёт инвойса в ¥ и ₽ и ориентировочного итога по правилам из техзадания.
+          Курсы и суммы подставляйте актуальные; эталонные значения из примера в ТЗ можно загрузить кнопкой ниже.
+        </p>
+      </div>
+      <div class="header__actions">
+        <button type="button" class="btn btn--ghost" id="btn-fill-example" title="Подставить цифры из примера в ТЗ">
+          Заполнить пример из ТЗ
+        </button>
+      </div>
+    </header>
+
+    <form class="form" id="calc-form" novalidate>
+      <section class="panel">
+        <h2 class="panel__title">Курсы валют</h2>
+        <div class="grid grid--rates">
+          <label class="field">
+            <span class="field__label">¥ за 1 $ <span class="hint">(из курса Khan Bank / пересчёт)</span></span>
+            <input type="number" name="yenPerUsd" id="yen-per-usd" step="0.01" min="0" value="161.4" required />
+          </label>
+          <label class="field">
+            <span class="field__label">₽ за 1 $ <span class="hint">АТБ</span></span>
+            <input type="number" name="rubPerUsd" id="rub-per-usd" step="0.01" min="0" value="80.99" required />
+          </label>
+          <label class="field">
+            <span class="field__label">₽ за 1 ¥ <span class="hint">АТБ, денежные переводы</span></span>
+            <input type="number" name="rubPerYen" id="rub-per-yen" step="0.0001" min="0" value="0.5299" required />
+          </label>
+          <label class="field">
+            <span class="field__label">₽ за 1 € <span class="hint">ЦБ · для пошлины</span></span>
+            <input type="number" name="rubPerEur" id="rub-per-eur" step="0.0001" min="0" value="91.0034" required />
+          </label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Япония (инвойс, ¥)</h2>
+        <div class="grid grid--2">
+          <label class="field">
+            <span class="field__label">Цена ТС на аукционе, ¥</span>
+            <input type="number" name="auctionYen" id="auction-yen" step="1" min="0" value="1802000" required />
+          </label>
+          <label class="field">
+            <span class="field__label">FOB <span class="hint">доставка до ярда, ¥</span></span>
+            <select name="fobYen" id="fob-yen"></select>
+          </label>
+          <label class="field">
+            <span class="field__label">Крепление в контейнере (vanning), ¥</span>
+            <input type="number" name="vanningYen" id="vanning-yen" step="1" min="0" value="40000" required />
+          </label>
+          <div class="field field--readonly">
+            <span class="field__label">Доп. комиссия аукциона, ¥ <span class="hint">по таблице ТЗ</span></span>
+            <output class="output-pill" id="commission-yen" for="auction-yen">—</output>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">До Монголии (USD → ¥ по курсу выше)</h2>
+        <p class="panel__note">
+          В ТЗ отдельно указаны базовые суммы доставки: <strong>Train</strong> и <strong>Track</strong>. Остальные $-строки при необходимости учитывайте вручную в полях ниже.
+        </p>
+        <div class="grid grid--2">
+          <label class="field">
+            <span class="field__label">Доставка Train (TRAINMOD), $</span>
+            <input type="number" name="usdTrain" id="usd-train" step="1" min="0" value="2040" required />
+          </label>
+          <label class="field">
+            <span class="field__label">Доставка Track (TRACKMOD), $</span>
+            <input type="number" name="usdTrack" id="usd-track" step="1" min="0" value="2340" required />
+          </label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Рубли в инвойсе (перевод в ¥)</h2>
+        <p class="panel__note">
+          В примере ТЗ в инвойсе в ¥ переводится строка «таможенная очистка» (47&nbsp;800&nbsp;₽). Прочие ₽-расходы на границе могут оплачиваться отдельно и не входить в ¥-инвойс — уточняйте по вашей схеме.
+        </p>
+        <label class="field">
+          <span class="field__label">Сумма в ₽ для перевода в инвойс (¥) <span class="hint">по умолчанию только таможенная очистка</span></span>
+          <input type="number" name="rubInInvoice" id="rub-in-invoice" step="1" min="0" value="47800" />
+        </label>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Таможня и итог в ₽</h2>
+        <div class="grid grid--2">
+          <label class="field">
+            <span class="field__label">Таможенные платежи (всего), ₽ <span class="hint">пошлина, сборы, утилизация…</span></span>
+            <input type="number" name="customsTotalRub" id="customs-total-rub" step="1" min="0" value="506719" />
+          </label>
+          <label class="field">
+            <span class="field__label">Лаборатория / ЭПТС, ₽</span>
+            <input type="number" name="labRub" id="lab-rub" step="1" min="0" value="40000" />
+          </label>
+        </div>
+      </section>
+
+      <div class="form__submit-wrap">
+        <button type="submit" class="btn btn--primary" id="btn-calc">Рассчитать</button>
+      </div>
+    </form>
+
+    <section class="results" id="results" aria-live="polite">
+      <h2 class="results__heading">Результаты</h2>
+      <div class="results__grid">
+        <article class="result-card result-card--train">
+          <header class="result-card__head">
+            <span class="result-card__badge">Train</span>
+            <p class="result-card__sub">TRAINMOD · 25–45 дней с погрузки в контейнер</p>
+          </header>
+          <dl class="result-list">
+            <div class="result-row">
+              <dt>Расходы по Японии, ¥</dt>
+              <dd id="out-japan-yen">—</dd>
+            </div>
+            <div class="result-row">
+              <dt>Блок $ → ¥ (доставка), ¥</dt>
+              <dd id="out-usd-train-yen">—</dd>
+            </div>
+            <div class="result-row">
+              <dt>₽ → ¥ (в инвойсе), ¥</dt>
+              <dd id="out-rub-invoice-train-yen">—</dd>
+            </div>
+            <div class="result-row result-row--strong">
+              <dt>Инвойс всего, ¥</dt>
+              <dd id="out-invoice-yen-train">—</dd>
+            </div>
+            <div class="result-row">
+              <dt>Сумма по курсу ₽/¥ (без комиссии), ₽</dt>
+              <dd id="out-invoice-base-train">—</dd>
+            </div>
+            <div class="result-row">
+              <dt>Комиссия банка 1,5% (мин. 10&nbsp;000&nbsp;₽), ₽</dt>
+              <dd id="out-invoice-fee-train">—</dd>
+            </div>
+            <div class="result-row result-row--accent">
+              <dt>Оплата по инвойсу в банк, ₽</dt>
+              <dd id="out-invoice-rub-train">—</dd>
+            </div>
+            <div class="result-row result-row--total">
+              <dt>Всего с доставкой, ₽</dt>
+              <dd id="out-grand-train">—</dd>
+            </div>
+          </dl>
+        </article>
+
+        <article class="result-card result-card--track">
+          <header class="result-card__head">
+            <span class="result-card__badge">Track</span>
+            <p class="result-card__sub">TRACKMOD · до 25 дней с погрузки в контейнер</p>
+          </header>
+          <dl class="result-list">
+            <div class="result-row">
+              <dt>Расходы по Японии, ¥</dt>
+              <dd id="out-japan-yen-t">—</dd>
+            </div>
+            <div class="result-row">
+              <dt>Блок $ → ¥ (доставка), ¥</dt>
+              <dd id="out-usd-track-yen">—</dd>
+            </div>
+            <div class="result-row">
+              <dt>₽ → ¥ (в инвойсе), ¥</dt>
+              <dd id="out-rub-invoice-track-yen">—</dd>
+            </div>
+            <div class="result-row result-row--strong">
+              <dt>Инвойс всего, ¥</dt>
+              <dd id="out-invoice-yen-track">—</dd>
+            </div>
+            <div class="result-row">
+              <dt>Сумма по курсу ₽/¥ (без комиссии), ₽</dt>
+              <dd id="out-invoice-base-track">—</dd>
+            </div>
+            <div class="result-row">
+              <dt>Комиссия банка 1,5% (мин. 10&nbsp;000&nbsp;₽), ₽</dt>
+              <dd id="out-invoice-fee-track">—</dd>
+            </div>
+            <div class="result-row result-row--accent">
+              <dt>Оплата по инвойсу в банк, ₽</dt>
+              <dd id="out-invoice-rub-track">—</dd>
+            </div>
+            <div class="result-row result-row--total">
+              <dt>Всего с доставкой, ₽</dt>
+              <dd id="out-grand-track">—</dd>
+            </div>
+          </dl>
+        </article>
+      </div>
+      <p class="results__footnote">
+        Комиссия банка АТБ: 1,5% от суммы в ₽ по курсу ¥, но не менее 10&nbsp;000&nbsp;₽. Итог «всего» = оплата по инвойсу + таможенные платежи + лаборатория.
+      </p>
+    </section>
+
+    <footer class="footer">
+      <p>Расчёт носит ориентировочный характер. Уточняйте курсы и состав платежей в банке и у таможенного представителя.</p>
+    </footer>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
