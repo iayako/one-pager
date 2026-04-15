@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./styles.css?v=2" />
 </head>
 <body>
   <div class="page">
@@ -150,20 +150,6 @@
       </div>
     </form>
 
-    <dialog class="auction-modal" id="auction-modal" aria-labelledby="auction-modal-title">
-      <div class="auction-modal__card">
-        <div class="auction-modal__head">
-          <h3 id="auction-modal-title">Выбор аукциона</h3>
-          <button type="button" class="btn btn--ghost btn--sm" id="btn-close-auction-modal">Закрыть</button>
-        </div>
-        <label class="field">
-          <span class="field__label">Поиск по названию</span>
-          <input type="text" id="auction-search" placeholder="Например, USS Nagoya" autocomplete="off" />
-        </label>
-        <div class="auction-modal__list" id="auction-list" role="listbox" aria-label="Список аукционов"></div>
-      </div>
-    </dialog>
-
     <section class="results results--hidden" id="results" aria-live="polite">
       <h2 class="results__heading">Результаты</h2>
       <div class="results__grid">
@@ -258,6 +244,21 @@
       <p>Расчёт носит ориентировочный характер. Уточняйте курсы и состав платежей в банке и у таможенного представителя.</p>
     </footer>
   </div>
-  <script src="./app.js"></script>
+
+  <dialog class="auction-modal" id="auction-modal" aria-labelledby="auction-modal-title">
+    <div class="auction-modal__card">
+      <div class="auction-modal__head">
+        <h3 id="auction-modal-title">Выбор аукциона</h3>
+        <button type="button" class="btn btn--ghost btn--sm" id="btn-close-auction-modal">Закрыть</button>
+      </div>
+      <label class="field">
+        <span class="field__label">Поиск по названию</span>
+        <input type="text" id="auction-search" placeholder="Например, USS Nagoya" autocomplete="off" />
+      </label>
+      <div class="auction-modal__list" id="auction-list" role="listbox" aria-label="Список аукционов"></div>
+    </div>
+  </dialog>
+
+  <script src="./app.js?v=2"></script>
 </body>
 </html>

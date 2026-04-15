@@ -140,6 +140,8 @@ const AUCTION_OPTIONS = [
 const APP_SCRIPT_URL = (() => {
   const cs = document.currentScript;
   if (cs && cs.src) return cs.src;
+  const byQuery = document.querySelector('script[src*="app.js"]');
+  if (byQuery && byQuery.src) return byQuery.src;
   const scripts = document.getElementsByTagName("script");
   for (let i = scripts.length - 1; i >= 0; i--) {
     const src = scripts[i].src;
@@ -444,7 +446,12 @@ function applyTheme(theme) {
 }
 
 function initTheme() {
-  const saved = localStorage.getItem(THEME_STORAGE_KEY);
+  let saved = null;
+  try {
+    saved = localStorage.getItem(THEME_STORAGE_KEY);
+  } catch {
+    /* приватный режим / блокировка storage — не валим весь скрипт */
+  }
   const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   const initial = saved || (systemDark ? "dark" : "light");
   applyTheme(initial);
@@ -454,7 +461,11 @@ function initTheme() {
   toggle.addEventListener("click", () => {
     const current = document.documentElement.getAttribute("data-theme") || "dark";
     const next = current === "dark" ? "light" : "dark";
-    localStorage.setItem(THEME_STORAGE_KEY, next);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, next);
+    } catch {
+      /* noop */
+    }
     applyTheme(next);
   });
 }
@@ -780,10 +791,22 @@ function wireFormListeners() {
   }
 }
 
-initTheme();
-initAuctionPicker();
-initKhanYenButton();
-initCbrEurButton();
-renderAuctionOptions();
-updateProgressiveSteps();
-wireFormListeners();
+(function bootCalculator() {
+  try {
+    initTheme();
+    initAuctionPicker();
+    initKhanYenButton();
+    initCbrEurButton();
+    renderAuctionOptions();
+    updateProgressiveSteps();
+    wireFormListeners();
+  } catch (err) {
+    console.error(err);
+    const msg =
+      err instanceof Error ? err.message : "Неизвестная ошибка";
+    document.body.insertAdjacentHTML(
+      "afterbegin",
+      `<div role="alert" style="margin:0;padding:12px 16px;background:#b91c1c;color:#fff;font:14px/1.4 system-ui,sans-serif;position:relative;z-index:99999;">Ошибка инициализации калькулятора: ${msg.replace(/</g, "&lt;")}. Откройте консоль (F12) или обновите страницу.</div>`
+    );
+  }
+})();

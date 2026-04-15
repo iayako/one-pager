@@ -239,13 +239,9 @@ h1 {
   transition: opacity 0.2s ease, transform 0.2s ease, max-height 0.2s ease, margin 0.2s ease;
 }
 
-.is-hidden {
-  opacity: 0;
-  transform: translateY(6px);
-  pointer-events: none;
-  max-height: 0;
-  overflow: hidden;
-  margin: 0;
+/* Только display — opacity/max-height оставляли «пустые» блоки и путали пошаговый режим */
+.progressive-step.is-hidden {
+  display: none !important;
 }
 
 .field__label {
@@ -326,6 +322,7 @@ input::placeholder {
   color: var(--text);
   width: min(720px, calc(100vw - 2rem));
   padding: 0;
+  z-index: 10001;
 }
 
 /* Fallback, если showModal() недоступен (старый Safari / WebView): только open */
