@@ -34,7 +34,7 @@
 
     <form class="form" id="calc-form" novalidate>
       <div class="form-defaults" hidden aria-hidden="true">
-        <input type="hidden" name="fobYen" id="fob-yen" value="110000" />
+        <input type="hidden" name="fobYen" id="fob-yen" value="" />
         <input type="hidden" name="vanningYen" id="vanning-yen" value="40000" />
         <input type="hidden" name="usdTrain" id="usd-train" value="2040" />
         <input type="hidden" name="usdTrack" id="usd-track" value="2340" />
@@ -91,13 +91,23 @@
                 <option value="hybrid">Гибрид</option>
               </select>
             </label>
+            <div class="field field--full auction-picker">
+              <span class="field__label">Аукцион (определяет FOB)</span>
+              <div class="auction-picker__row">
+                <input type="text" name="auctionName" id="auction-name" required readonly placeholder="Аукцион не выбран" />
+                <button type="button" class="btn btn--ghost btn--pick" id="btn-open-auction-modal">
+                  Выбрать
+                </button>
+              </div>
+              <output class="auction-picker__fob" id="auction-fob-display">FOB: —</output>
+            </div>
           </div>
         </div>
 
         <div
           id="wizard-step-2"
           class="wizard__pane wizard__pane--below progressive-step is-hidden"
-          data-requires="auction-yen,vehicle-age,engine-type"
+          data-requires="auction-yen,vehicle-age,engine-type,auction-name"
         >
           <div class="grid grid--2">
             <label class="field">
@@ -130,10 +140,24 @@
 
       <div
         class="form__submit-wrap progressive-step is-hidden"
-        data-requires="auction-yen,vehicle-age,engine-type,engine-cc,engine-kw,yen-per-usd,rub-per-usd,rub-per-yen,rub-per-eur"
+        data-requires="auction-yen,vehicle-age,engine-type,auction-name,engine-cc,engine-kw,yen-per-usd,rub-per-usd,rub-per-yen,rub-per-eur"
       >
         <button type="submit" class="btn btn--primary" id="btn-calc">Рассчитать</button>
       </div>
+
+      <dialog class="auction-modal" id="auction-modal">
+        <form method="dialog" class="auction-modal__card">
+          <div class="auction-modal__head">
+            <h3>Выбор аукциона</h3>
+            <button type="submit" class="btn btn--ghost btn--sm" value="cancel">Закрыть</button>
+          </div>
+          <label class="field">
+            <span class="field__label">Поиск по названию</span>
+            <input type="text" id="auction-search" placeholder="Например, USS Nagoya" />
+          </label>
+          <div class="auction-modal__list" id="auction-list" role="listbox" aria-label="Список аукционов"></div>
+        </form>
+      </dialog>
     </form>
 
     <section class="results results--hidden" id="results" aria-live="polite">
