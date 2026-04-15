@@ -294,10 +294,10 @@ function recyclingFeeRub(vehicleAge, engineHp) {
 }
 
 /**
- * Таможенный платёж, пошлина и утилизационный сбор (всего), ₽ — по ТЗ.
+ * Таможенный платёж, пошлина и утилизационный сбор — разбивка и итог, ₽ — по ТЗ.
  * Зависит от инвойса ¥ (Train/Track дают разную таможенную стоимость и сбор за оформление).
  */
-function customsBlockTotalRub(data, invoiceYen) {
+function customsBlockBreakdown(data, invoiceYen) {
   const cv = customsValueRubFromInvoice(invoiceYen, data.rubPerYen);
   const fee = customsClearanceFeeRub(cv);
   const duty = importDutyAgeRub(
@@ -307,7 +307,17 @@ function customsBlockTotalRub(data, invoiceYen) {
     data.engineDisplacementCc
   );
   const recycling = recyclingFeeRub(data.vehicleAge, data.enginePowerHp);
-  return fee + duty + recycling;
+  return {
+    customsValueRub: cv,
+    clearanceFeeRub: fee,
+    importDutyRub: duty,
+    recyclingFeeRub: recycling,
+    totalRub: fee + duty + recycling,
+  };
+}
+
+function customsBlockTotalRub(data, invoiceYen) {
+  return customsBlockBreakdown(data, invoiceYen).totalRub;
 }
 
 function japanYenTotal(auctionYen, fobYen, vanningYen, commissionYen) {
@@ -405,54 +415,83 @@ function initTheme() {
   });
 }
 
-function render(data) {
+function computeCalculation(data) {
   const commission = auctionCommissionYen(data.auctionYen);
-
   const japan = japanYenTotal(
     data.auctionYen,
     data.fobYen,
     data.vanningYen,
     commission
   );
-
   const rubYen = rubInvoiceToYen(
     data.rubInInvoice,
     data.rubPerUsd,
     data.yenPerUsd
   );
-
   const usdTrainYen = usdToYen(data.usdTrain, data.yenPerUsd);
   const usdTrackYen = usdToYen(data.usdTrack, data.yenPerUsd);
-
   const invoiceYenTrain = japan + usdTrainYen + rubYen;
   const invoiceYenTrack = japan + usdTrackYen + rubYen;
-
   const bankTrain = invoiceRubWithBankFee(invoiceYenTrain, data.rubPerYen);
   const bankTrack = invoiceRubWithBankFee(invoiceYenTrack, data.rubPerYen);
-
-  const customsTrain = customsBlockTotalRub(data, invoiceYenTrain);
-  const customsTrack = customsBlockTotalRub(data, invoiceYenTrack);
+  const customsTrain = customsBlockBreakdown(data, invoiceYenTrain);
+  const customsTrack = customsBlockBreakdown(data, invoiceYenTrack);
   const lab = Number.isFinite(data.labRub) ? data.labRub : 0;
+  const grandTrain = bankTrain.totalRub + customsTrain.totalRub + lab;
+  const grandTrack = bankTrack.totalRub + customsTrack.totalRub + lab;
 
-  const grandTrain = bankTrain.totalRub + customsTrain + lab;
-  const grandTrack = bankTrack.totalRub + customsTrack + lab;
+  return {
+    inputs: { ...data },
+    outputs: {
+      auctionCommissionYen: commission,
+      japanYenTotal: japan,
+      rubInvoiceYenEquivalent: rubYen,
+      usdTrainYen,
+      usdTrackYen,
+      invoiceYenTrain,
+      invoiceYenTrack,
+      bankTrain,
+      bankTrack,
+      customsTrain,
+      customsTrack,
+      labRub: lab,
+      grandTotalTrainRub: grandTrain,
+      grandTotalTrackRub: grandTrack,
+    },
+  };
+}
 
-  document.getElementById("out-japan-yen").textContent = formatYen(japan);
-  document.getElementById("out-japan-yen-t").textContent = formatYen(japan);
-  document.getElementById("out-usd-train-yen").textContent = formatYen(usdTrainYen);
-  document.getElementById("out-usd-track-yen").textContent = formatYen(usdTrackYen);
-  document.getElementById("out-rub-invoice-train-yen").textContent = formatYen(rubYen);
-  document.getElementById("out-rub-invoice-track-yen").textContent = formatYen(rubYen);
-  document.getElementById("out-invoice-yen-train").textContent = formatYen(invoiceYenTrain);
-  document.getElementById("out-invoice-yen-track").textContent = formatYen(invoiceYenTrack);
-  document.getElementById("out-invoice-rub-train").textContent = formatRub(bankTrain.totalRub);
-  document.getElementById("out-invoice-rub-track").textContent = formatRub(bankTrack.totalRub);
-  document.getElementById("out-customs-train").textContent = formatRub(customsTrain);
-  document.getElementById("out-customs-track").textContent = formatRub(customsTrack);
-  document.getElementById("out-lab-train").textContent = formatRub(lab);
-  document.getElementById("out-lab-track").textContent = formatRub(lab);
-  document.getElementById("out-grand-train").textContent = formatRub(grandTrain);
-  document.getElementById("out-grand-track").textContent = formatRub(grandTrack);
+function persistCalculationSnapshot(snapshot) {
+  fetch("api/save_calculation.php", {
+    method: "POST",
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+    body: JSON.stringify(snapshot),
+    cache: "no-store",
+  }).catch(() => {});
+}
+
+function render(data) {
+  const snap = computeCalculation(data);
+  const o = snap.outputs;
+
+  document.getElementById("out-japan-yen").textContent = formatYen(o.japanYenTotal);
+  document.getElementById("out-japan-yen-t").textContent = formatYen(o.japanYenTotal);
+  document.getElementById("out-usd-train-yen").textContent = formatYen(o.usdTrainYen);
+  document.getElementById("out-usd-track-yen").textContent = formatYen(o.usdTrackYen);
+  document.getElementById("out-rub-invoice-train-yen").textContent = formatYen(o.rubInvoiceYenEquivalent);
+  document.getElementById("out-rub-invoice-track-yen").textContent = formatYen(o.rubInvoiceYenEquivalent);
+  document.getElementById("out-invoice-yen-train").textContent = formatYen(o.invoiceYenTrain);
+  document.getElementById("out-invoice-yen-track").textContent = formatYen(o.invoiceYenTrack);
+  document.getElementById("out-invoice-rub-train").textContent = formatRub(o.bankTrain.totalRub);
+  document.getElementById("out-invoice-rub-track").textContent = formatRub(o.bankTrack.totalRub);
+  document.getElementById("out-customs-train").textContent = formatRub(o.customsTrain.totalRub);
+  document.getElementById("out-customs-track").textContent = formatRub(o.customsTrack.totalRub);
+  document.getElementById("out-lab-train").textContent = formatRub(o.labRub);
+  document.getElementById("out-lab-track").textContent = formatRub(o.labRub);
+  document.getElementById("out-grand-train").textContent = formatRub(o.grandTotalTrainRub);
+  document.getElementById("out-grand-track").textContent = formatRub(o.grandTotalTrackRub);
+
+  persistCalculationSnapshot({ inputs: snap.inputs, outputs: snap.outputs });
 }
 
 function setSelectedAuction(name, fobYen) {
