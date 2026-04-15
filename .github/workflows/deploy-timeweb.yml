@@ -14,10 +14,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Generate deploy marker file
+      - name: Prepare deploy directory
         run: |
-          echo "commit=${GITHUB_SHA}" > deploy-marker.txt
-          echo "deployed_at_utc=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> deploy-marker.txt
+          mkdir -p deploy
+          cp index.html deploy/index.html
+          cp styles.css deploy/styles.css
+          cp app.js deploy/app.js
 
       - name: Upload files to Timeweb via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
@@ -26,13 +28,4 @@ jobs:
           username: ${{ secrets.TIMEWEB_FTP_USER }}
           password: ${{ secrets.TIMEWEB_FTP_PASSWORD }}
           server-dir: ${{ secrets.TIMEWEB_FTP_TARGET_DIR }}
-          local-dir: ./
-          exclude: |
-            **/.git*
-            **/.github/**
-            **/node_modules/**
-            **/.cursor/**
-            **/README.md
-            **/PROJECT_STATUS.md
-            **/CALCULATION.md
-            **/SALES_PRESENTATION.md
+          local-dir: ./deploy/
