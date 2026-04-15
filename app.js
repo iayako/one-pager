@@ -523,6 +523,39 @@ function initAuctionPicker() {
   });
 }
 
+function initCbrEurButton() {
+  const btn = document.getElementById("btn-cbr-eur");
+  const input = document.getElementById("rub-per-eur");
+  if (!btn || !input) return;
+
+  btn.addEventListener("click", async () => {
+    const prev = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "…";
+    try {
+      const res = await fetch("api/cbr_eur.php", { cache: "no-store" });
+      const data = await res.json().catch(() => null);
+      if (!data || !data.ok) {
+        const err = data && data.error ? data.error : "Не удалось загрузить курс";
+        throw new Error(err);
+      }
+      input.value = String(data.rubPerEur);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      updateProgressiveSteps();
+      const results = document.getElementById("results");
+      if (results && !results.classList.contains("results--hidden")) {
+        render(readForm());
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Ошибка загрузки";
+      alert(msg);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = prev;
+    }
+  });
+}
+
 function fillExample() {
   document.getElementById("auction-yen").value = "1802000";
   document.getElementById("vehicle-age").value = "3to5";
@@ -562,5 +595,6 @@ document.getElementById("calc-form").addEventListener("change", updateProgressiv
 
 initTheme();
 initAuctionPicker();
+initCbrEurButton();
 renderAuctionOptions();
 updateProgressiveSteps();

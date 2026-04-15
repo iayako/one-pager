@@ -52,7 +52,12 @@
           </label>
           <label class="field">
             <span class="field__label">₽ за 1 € <span class="hint">ЦБ · для пошлины</span></span>
-            <input type="number" name="rubPerEur" id="rub-per-eur" step="0.0001" min="0" value="91.0034" required placeholder="Например, 91.0034" />
+            <div class="auction-picker__row">
+              <input type="number" name="rubPerEur" id="rub-per-eur" step="0.0001" min="0" value="91.0034" required placeholder="Например, 91.0034" />
+              <button type="button" class="btn btn--ghost btn--pick" id="btn-cbr-eur" title="Подставить официальный курс € ЦБ на сегодня">
+                ЦБ
+              </button>
+            </div>
           </label>
         </div>
       </section>
