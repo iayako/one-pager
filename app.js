@@ -133,6 +133,21 @@ const AUCTION_OPTIONS = [
   { name: "Yanase and Aucnet", fobYen: 110000 },
 ];
 
+/**
+ * Базовый URL этого файла (в момент первого синхронного запуска app.js).
+ * В async-обработчиках document.currentScript уже null — без кэша resolveAppUrl ломается.
+ */
+const APP_SCRIPT_URL = (() => {
+  const cs = document.currentScript;
+  if (cs && cs.src) return cs.src;
+  const scripts = document.getElementsByTagName("script");
+  for (let i = scripts.length - 1; i >= 0; i--) {
+    const src = scripts[i].src;
+    if (src && /\/app\.js(\?|#|$)/i.test(src)) return src;
+  }
+  return window.location.href;
+})();
+
 /** Доп. комиссия аукциона от цены авто (¥), таблица из ТЗ */
 function auctionCommissionYen(auctionPrice) {
   const p = Number(auctionPrice);
@@ -350,18 +365,9 @@ function formatInt(n) {
   return Math.round(n).toLocaleString("ru-RU");
 }
 
-/**
- * URL к PHP в той же папке, что и app.js — работает в подкаталоге сайта и без / в конце пути страницы.
- */
+/** URL к PHP в той же папке, что и app.js (см. APP_SCRIPT_URL). */
 function resolveAppUrl(relativePath) {
-  const scripts = document.getElementsByTagName("script");
-  for (let i = scripts.length - 1; i >= 0; i--) {
-    const src = scripts[i].src;
-    if (src && /\/app\.js(\?|#|$)/.test(src)) {
-      return new URL(relativePath, src).href;
-    }
-  }
-  return new URL(relativePath, window.location.href).href;
+  return new URL(relativePath, APP_SCRIPT_URL).href;
 }
 
 function openAuctionDialog(modal) {
@@ -750,21 +756,29 @@ function fillExample() {
   document.getElementById("lab-rub").value = "40000";
 }
 
-document.getElementById("calc-form").addEventListener("submit", (e) => {
-  e.preventDefault();
-  render(readForm());
-  document.getElementById("results").classList.remove("results--hidden");
-});
-
-document.getElementById("btn-fill-example").addEventListener("click", () => {
-  fillExample();
-  updateProgressiveSteps();
-  render(readForm());
-  document.getElementById("results").classList.remove("results--hidden");
-});
-
-document.getElementById("calc-form").addEventListener("input", updateProgressiveSteps);
-document.getElementById("calc-form").addEventListener("change", updateProgressiveSteps);
+function wireFormListeners() {
+  const form = document.getElementById("calc-form");
+  if (form) {
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      render(readForm());
+      const results = document.getElementById("results");
+      if (results) results.classList.remove("results--hidden");
+    });
+    form.addEventListener("input", updateProgressiveSteps);
+    form.addEventListener("change", updateProgressiveSteps);
+  }
+  const fillBtn = document.getElementById("btn-fill-example");
+  if (fillBtn) {
+    fillBtn.addEventListener("click", () => {
+      fillExample();
+      updateProgressiveSteps();
+      render(readForm());
+      const results = document.getElementById("results");
+      if (results) results.classList.remove("results--hidden");
+    });
+  }
+}
 
 initTheme();
 initAuctionPicker();
@@ -772,3 +786,4 @@ initKhanYenButton();
 initCbrEurButton();
 renderAuctionOptions();
 updateProgressiveSteps();
+wireFormListeners();
