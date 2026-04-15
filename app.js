@@ -176,6 +176,140 @@ function invoiceRubWithBankFee(invoiceYen, rubPerYen) {
   return { baseRub, feeRub, totalRub: baseRub + feeRub };
 }
 
+/** Таможенная стоимость в ₽: инвойс ¥ × курс ₽/¥ (АТБ), по ТЗ */
+function customsValueRubFromInvoice(invoiceYen, rubPerYen) {
+  const y = Number(invoiceYen);
+  const r = Number(rubPerYen);
+  if (!Number.isFinite(y) || y <= 0) return 0;
+  if (!Number.isFinite(r) || r <= 0) return 0;
+  return Math.round(y * r);
+}
+
+/**
+ * Таможенный сбор за оформление (постановление, диапазоны по таможенной стоимости в ₽).
+ * Тексты ставок — из ТЗ (пример: 1 280 511 ₽ → 13 541 ₽).
+ */
+function customsClearanceFeeRub(customsValueRub) {
+  const v = Number(customsValueRub);
+  if (!Number.isFinite(v) || v <= 0) return 0;
+  if (v <= 200_000) return 1231;
+  if (v <= 450_000) return 2462;
+  if (v <= 1_200_000) return 4924;
+  if (v <= 2_700_000) return 13541;
+  if (v <= 4_200_000) return 18465;
+  if (v <= 5_500_000) return 21344;
+  if (v <= 10_000_000) return 49240;
+  return 73860;
+}
+
+/**
+ * Пошлина: авто до 3 лет — % от стоимости в € и минимум €/см³ (ТЗ).
+ * Стоимость в € = таможенная стоимость ₽ / курс € ЦБ.
+ */
+function importDutyUnder3Rub(customsValueRub, rubPerEur, engineCc) {
+  const rub = Number(customsValueRub);
+  const eurRate = Number(rubPerEur);
+  const cc = Number(engineCc);
+  if (!Number.isFinite(rub) || rub <= 0) return 0;
+  if (!Number.isFinite(eurRate) || eurRate <= 0) return 0;
+  if (!Number.isFinite(cc) || cc <= 0) return 0;
+  const priceEur = rub / eurRate;
+  let percent;
+  let minEurPerCc;
+  if (priceEur <= 8500) {
+    percent = 0.54;
+    minEurPerCc = 2.5;
+  } else if (priceEur <= 16700) {
+    percent = 0.48;
+    minEurPerCc = 3.5;
+  } else if (priceEur <= 42300) {
+    percent = 0.48;
+    minEurPerCc = 5.5;
+  } else if (priceEur <= 84500) {
+    percent = 0.48;
+    minEurPerCc = 7.5;
+  } else if (priceEur <= 169000) {
+    percent = 0.48;
+    minEurPerCc = 15;
+  } else {
+    percent = 0.48;
+    minEurPerCc = 20;
+  }
+  const dutyEur = Math.max(percent * priceEur, minEurPerCc * cc);
+  return Math.round(dutyEur * eurRate);
+}
+
+/** € за 1 см³ для авто 3–5 лет (ТЗ) */
+function dutyEurPerCc35(engineCc) {
+  const cc = Number(engineCc);
+  if (!Number.isFinite(cc) || cc <= 0) return 0;
+  if (cc <= 1000) return 1.5;
+  if (cc <= 1500) return 1.7;
+  if (cc <= 1800) return 2.5;
+  if (cc <= 2300) return 2.7;
+  if (cc <= 3000) return 3;
+  return 3.6;
+}
+
+/** € за 1 см³ для авто старше 5 лет (ТЗ) */
+function dutyEurPerCcOver5(engineCc) {
+  const cc = Number(engineCc);
+  if (!Number.isFinite(cc) || cc <= 0) return 0;
+  if (cc <= 1000) return 3;
+  if (cc <= 1500) return 3.2;
+  if (cc <= 1800) return 3.5;
+  if (cc <= 2300) return 4.8;
+  if (cc <= 3000) return 5;
+  return 5.7;
+}
+
+function importDutyAgeRub(vehicleAge, customsValueRub, rubPerEur, engineCc) {
+  if (vehicleAge === "under3") {
+    return importDutyUnder3Rub(customsValueRub, rubPerEur, engineCc);
+  }
+  const eurRate = Number(rubPerEur);
+  const cc = Number(engineCc);
+  if (!Number.isFinite(eurRate) || eurRate <= 0) return 0;
+  if (!Number.isFinite(cc) || cc <= 0) return 0;
+  let eurPerCc = 0;
+  if (vehicleAge === "3to5") eurPerCc = dutyEurPerCc35(cc);
+  else if (vehicleAge === "over5") eurPerCc = dutyEurPerCcOver5(cc);
+  else return 0;
+  return Math.round(cc * eurPerCc * eurRate);
+}
+
+/**
+ * Утилизационный сбор (ТЗ: пример 20 000 × 0,26 при мощности до 160 л.с.).
+ * Мощность вводится в **л.с.** (как в ТЗ).
+ * Для физлиц: младше 3 лет — коэфф. 0,17; от 3 лет — 0,26 (практика льготы для импорта).
+ * Свыше 160 л.с. — оценка по нарастающей шкале (уточняйте у брокера).
+ */
+function recyclingFeeRub(vehicleAge, engineHp) {
+  const hp = Number(engineHp);
+  if (!Number.isFinite(hp) || hp <= 0) return 0;
+  const coefUnder160 = vehicleAge === "under3" ? 0.17 : 0.26;
+  if (hp <= 160) return Math.round(20000 * coefUnder160);
+  const over = hp - 160;
+  return Math.round(20000 * coefUnder160 * (1 + (over / 160) ** 2 * 12));
+}
+
+/**
+ * Таможенный платёж, пошлина и утилизационный сбор (всего), ₽ — по ТЗ.
+ * Зависит от инвойса ¥ (Train/Track дают разную таможенную стоимость и сбор за оформление).
+ */
+function customsBlockTotalRub(data, invoiceYen) {
+  const cv = customsValueRubFromInvoice(invoiceYen, data.rubPerYen);
+  const fee = customsClearanceFeeRub(cv);
+  const duty = importDutyAgeRub(
+    data.vehicleAge,
+    cv,
+    data.rubPerEur,
+    data.engineDisplacementCc
+  );
+  const recycling = recyclingFeeRub(data.vehicleAge, data.enginePowerHp);
+  return fee + duty + recycling;
+}
+
 function japanYenTotal(auctionYen, fobYen, vanningYen, commissionYen) {
   return (
     Number(auctionYen) +
@@ -218,14 +352,13 @@ function readForm() {
     engineType: String(fd.get("engineType") || ""),
     auctionName: String(fd.get("auctionName") || ""),
     engineDisplacementCc: parseFloat(String(fd.get("engineDisplacementCc"))),
-    enginePowerKw: parseFloat(String(fd.get("enginePowerKw"))),
+    enginePowerHp: parseFloat(String(fd.get("enginePowerHp"))),
     auctionYen: parseFloat(fd.get("auctionYen")),
     fobYen: parseFloat(fd.get("fobYen")),
     vanningYen: parseFloat(fd.get("vanningYen")),
     usdTrain: parseFloat(fd.get("usdTrain")),
     usdTrack: parseFloat(fd.get("usdTrack")),
     rubInInvoice: parseFloat(fd.get("rubInInvoice")),
-    customsTotalRub: parseFloat(fd.get("customsTotalRub")),
     labRub: parseFloat(fd.get("labRub")),
   };
 }
@@ -297,12 +430,12 @@ function render(data) {
   const bankTrain = invoiceRubWithBankFee(invoiceYenTrain, data.rubPerYen);
   const bankTrack = invoiceRubWithBankFee(invoiceYenTrack, data.rubPerYen);
 
-  const customs = Number.isFinite(data.customsTotalRub) ? data.customsTotalRub : 0;
+  const customsTrain = customsBlockTotalRub(data, invoiceYenTrain);
+  const customsTrack = customsBlockTotalRub(data, invoiceYenTrack);
   const lab = Number.isFinite(data.labRub) ? data.labRub : 0;
-  const extra = customs + lab;
 
-  const grandTrain = bankTrain.totalRub + extra;
-  const grandTrack = bankTrack.totalRub + extra;
+  const grandTrain = bankTrain.totalRub + customsTrain + lab;
+  const grandTrack = bankTrack.totalRub + customsTrack + lab;
 
   document.getElementById("out-japan-yen").textContent = formatYen(japan);
   document.getElementById("out-japan-yen-t").textContent = formatYen(japan);
@@ -314,8 +447,8 @@ function render(data) {
   document.getElementById("out-invoice-yen-track").textContent = formatYen(invoiceYenTrack);
   document.getElementById("out-invoice-rub-train").textContent = formatRub(bankTrain.totalRub);
   document.getElementById("out-invoice-rub-track").textContent = formatRub(bankTrack.totalRub);
-  document.getElementById("out-customs-train").textContent = formatRub(customs);
-  document.getElementById("out-customs-track").textContent = formatRub(customs);
+  document.getElementById("out-customs-train").textContent = formatRub(customsTrain);
+  document.getElementById("out-customs-track").textContent = formatRub(customsTrack);
   document.getElementById("out-lab-train").textContent = formatRub(lab);
   document.getElementById("out-lab-track").textContent = formatRub(lab);
   document.getElementById("out-grand-train").textContent = formatRub(grandTrain);
@@ -392,12 +525,12 @@ function initAuctionPicker() {
 
 function fillExample() {
   document.getElementById("auction-yen").value = "1802000";
-  document.getElementById("vehicle-age").value = "under3";
+  document.getElementById("vehicle-age").value = "3to5";
   document.getElementById("engine-type").value = "gasoline";
-  document.getElementById("engine-cc").value = "2000";
-  document.getElementById("engine-kw").value = "150";
+  document.getElementById("engine-cc").value = "1986";
+  document.getElementById("engine-hp").value = "150";
   document.getElementById("engine-cc").setCustomValidity("");
-  document.getElementById("engine-kw").setCustomValidity("");
+  document.getElementById("engine-hp").setCustomValidity("");
 
   document.getElementById("yen-per-usd").value = "161.4";
   document.getElementById("rub-per-usd").value = "80.99";
@@ -408,7 +541,6 @@ function fillExample() {
   document.getElementById("usd-train").value = "2040";
   document.getElementById("usd-track").value = "2340";
   document.getElementById("rub-in-invoice").value = "47800";
-  document.getElementById("customs-total-rub").value = "506719";
   document.getElementById("lab-rub").value = "40000";
 }
 

@@ -14,7 +14,7 @@
     <header class="header">
       <div class="header__text">
         <h1>Расчет стоимости авто</h1>
-        <p class="lede">Сверху — курсы валют; ниже выберите автомобиль: объём и мощность появятся после базовых полей.</p>
+        <p class="lede">Сверху — курсы валют; ниже выберите автомобиль: объём (см³) и мощность (л.с.) появятся после базовых полей.</p>
         <nav class="source-tabs" aria-label="Источник авто">
           <button type="button" class="source-tabs__item is-active">Из Японии</button>
           <button type="button" class="source-tabs__item" disabled>Из Кореи</button>
@@ -39,7 +39,6 @@
         <input type="hidden" name="usdTrain" id="usd-train" value="2040" />
         <input type="hidden" name="usdTrack" id="usd-track" value="2340" />
         <input type="hidden" name="rubInInvoice" id="rub-in-invoice" value="47800" />
-        <input type="hidden" name="customsTotalRub" id="customs-total-rub" value="506719" />
         <input type="hidden" name="labRub" id="lab-rub" value="40000" />
       </div>
 
@@ -123,11 +122,11 @@
               />
             </label>
             <label class="field">
-              <span class="field__label">Мощность, кВт</span>
+              <span class="field__label">Мощность, л.с.</span>
               <input
                 type="number"
-                name="enginePowerKw"
-                id="engine-kw"
+                name="enginePowerHp"
+                id="engine-hp"
                 step="0.1"
                 min="0.1"
                 required
@@ -140,7 +139,7 @@
 
       <div
         class="form__submit-wrap progressive-step is-hidden"
-        data-requires="auction-yen,vehicle-age,engine-type,auction-name,engine-cc,engine-kw,yen-per-usd,rub-per-usd,rub-per-yen,rub-per-eur"
+        data-requires="auction-yen,vehicle-age,engine-type,auction-name,engine-cc,engine-hp,yen-per-usd,rub-per-usd,rub-per-yen,rub-per-eur"
       >
         <button type="submit" class="btn btn--primary" id="btn-calc">Рассчитать</button>
       </div>
@@ -246,7 +245,7 @@
         </article>
       </div>
       <p class="results__footnote">
-        Комиссия банка АТБ: 1,5% от суммы в ₽ по курсу ¥, но не менее 10&nbsp;000&nbsp;₽. Итог «всего» = оплата по инвойсу + таможенные платежи + лаборатория.
+        Комиссия банка АТБ: 1,5% от суммы в ₽ по курсу ¥, но не менее 10&nbsp;000&nbsp;₽. Итог «всего» = оплата по инвойсу + таможня (сбор + пошлина + утилизация) + лаборатория. Таможенная сумма считается от инвойса ¥ и характеристик авто; для Train и Track она может немного отличаться из‑за разной суммы инвойса.
       </p>
     </section>
 
