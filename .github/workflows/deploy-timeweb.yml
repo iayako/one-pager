@@ -14,6 +14,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Generate deploy marker file
+        run: |
+          echo "commit=${GITHUB_SHA}" > deploy-marker.txt
+          echo "deployed_at_utc=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> deploy-marker.txt
+
       - name: Upload files to Timeweb via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
