@@ -148,21 +148,21 @@
       >
         <button type="submit" class="btn btn--primary" id="btn-calc">Рассчитать</button>
       </div>
-
-      <dialog class="auction-modal" id="auction-modal">
-        <form method="dialog" class="auction-modal__card">
-          <div class="auction-modal__head">
-            <h3>Выбор аукциона</h3>
-            <button type="submit" class="btn btn--ghost btn--sm" value="cancel">Закрыть</button>
-          </div>
-          <label class="field">
-            <span class="field__label">Поиск по названию</span>
-            <input type="text" id="auction-search" placeholder="Например, USS Nagoya" />
-          </label>
-          <div class="auction-modal__list" id="auction-list" role="listbox" aria-label="Список аукционов"></div>
-        </form>
-      </dialog>
     </form>
+
+    <dialog class="auction-modal" id="auction-modal" aria-labelledby="auction-modal-title">
+      <div class="auction-modal__card">
+        <div class="auction-modal__head">
+          <h3 id="auction-modal-title">Выбор аукциона</h3>
+          <button type="button" class="btn btn--ghost btn--sm" id="btn-close-auction-modal">Закрыть</button>
+        </div>
+        <label class="field">
+          <span class="field__label">Поиск по названию</span>
+          <input type="text" id="auction-search" placeholder="Например, USS Nagoya" autocomplete="off" />
+        </label>
+        <div class="auction-modal__list" id="auction-list" role="listbox" aria-label="Список аукционов"></div>
+      </div>
+    </dialog>
 
     <section class="results results--hidden" id="results" aria-live="polite">
       <h2 class="results__heading">Результаты</h2>

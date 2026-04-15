@@ -328,6 +328,18 @@ input::placeholder {
   padding: 0;
 }
 
+/* Fallback, если showModal() недоступен (старый Safari / WebView): только open */
+.auction-modal[open]:not(:modal) {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10000;
+  margin: 0;
+  max-height: min(90vh, 900px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
 .auction-modal::backdrop {
   background: rgba(5, 8, 12, 0.72);
 }

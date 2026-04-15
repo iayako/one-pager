@@ -350,6 +350,44 @@ function formatInt(n) {
   return Math.round(n).toLocaleString("ru-RU");
 }
 
+/**
+ * URL к PHP в той же папке, что и app.js — работает в подкаталоге сайта и без / в конце пути страницы.
+ */
+function resolveAppUrl(relativePath) {
+  const scripts = document.getElementsByTagName("script");
+  for (let i = scripts.length - 1; i >= 0; i--) {
+    const src = scripts[i].src;
+    if (src && /\/app\.js(\?|#|$)/.test(src)) {
+      return new URL(relativePath, src).href;
+    }
+  }
+  return new URL(relativePath, window.location.href).href;
+}
+
+function openAuctionDialog(modal) {
+  if (modal && typeof modal.showModal === "function") {
+    try {
+      modal.showModal();
+      return;
+    } catch {
+      /* старые WebKit и т.п. */
+    }
+  }
+  if (modal) modal.setAttribute("open", "");
+}
+
+function closeAuctionDialog(modal) {
+  if (modal && typeof modal.close === "function") {
+    try {
+      modal.close();
+      return;
+    } catch {
+      /* noop */
+    }
+  }
+  if (modal) modal.removeAttribute("open");
+}
+
 function readForm() {
   const form = document.getElementById("calc-form");
   const fd = new FormData(form);
@@ -462,7 +500,7 @@ function computeCalculation(data) {
 }
 
 function persistCalculationSnapshot(snapshot) {
-  fetch("api/save_calculation.php", {
+  fetch(resolveAppUrl("api/save_calculation.php"), {
     method: "POST",
     headers: { "Content-Type": "application/json; charset=utf-8" },
     body: JSON.stringify(snapshot),
@@ -534,15 +572,22 @@ function renderAuctionOptions(filterText = "") {
 function initAuctionPicker() {
   const modal = document.getElementById("auction-modal");
   const openBtn = document.getElementById("btn-open-auction-modal");
+  const closeBtn = document.getElementById("btn-close-auction-modal");
   const search = document.getElementById("auction-search");
   const list = document.getElementById("auction-list");
   if (!modal || !openBtn || !search || !list) return;
 
   openBtn.addEventListener("click", () => {
     renderAuctionOptions(search.value);
-    modal.showModal();
+    openAuctionDialog(modal);
     search.focus();
   });
+
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      closeAuctionDialog(modal);
+    });
+  }
 
   search.addEventListener("input", () => {
     renderAuctionOptions(search.value);
@@ -557,7 +602,7 @@ function initAuctionPicker() {
     const fobYen = Number(btn.getAttribute("data-fob"));
     if (!name || !Number.isFinite(fobYen)) return;
     setSelectedAuction(name, fobYen);
-    modal.close();
+    closeAuctionDialog(modal);
     updateProgressiveSteps();
   });
 }
@@ -604,7 +649,7 @@ function initKhanYenButton() {
     btn.disabled = true;
     btn.textContent = "…";
     try {
-      const res = await fetch("api/khan_rates.php", { cache: "no-store" });
+      const res = await fetch(resolveAppUrl("api/khan_rates.php"), { cache: "no-store" });
       const raw = await res.text();
       let data;
       try {
@@ -648,7 +693,7 @@ function initCbrEurButton() {
     btn.disabled = true;
     btn.textContent = "…";
     try {
-      const res = await fetch("api/cbr_eur.php", { cache: "no-store" });
+      const res = await fetch(resolveAppUrl("api/cbr_eur.php"), { cache: "no-store" });
       const raw = await res.text();
       let data;
       try {
