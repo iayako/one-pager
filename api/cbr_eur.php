@@ -30,27 +30,69 @@ if ($dateParam !== '') {
 $dateReq = $dt->format('d/m/Y');
 $url = 'https://www.cbr.ru/scripts/XML_daily.asp?date_req=' . rawurlencode($dateReq);
 
+function cbr_xml_looks_valid(string $s): bool
+{
+    return stripos($s, 'ValCurs') !== false || stripos($s, 'CharCode') !== false;
+}
+
 /**
- * Запрос URL через curl.exe в PATH (если в PHP отключены ext-curl и HTTPS-стримы).
- * -k отключает проверку SSL (как запасной путь в dev).
+ * Запрос через curl.exe (если в PHP нет ext-curl / openssl для HTTPS).
+ * На Windows shell_exec('curl …') часто не находит бинарник или коверкает URL — используем
+ * явный путь к System32\curl.exe и proc_open с аргументами без escapeshellarg для URL.
  */
 function fetch_cbr_via_system_curl(string $url): ?string
 {
-    if (!function_exists('shell_exec')) {
-        return null;
+    $bins = ['curl'];
+    if (PHP_OS_FAMILY === 'Windows') {
+        array_unshift($bins, 'C:\\Windows\\System32\\curl.exe');
+        if (is_dir('C:\\msys64\\mingw64\\bin')) {
+            array_unshift($bins, 'C:\\msys64\\mingw64\\bin\\curl.exe');
+        }
     }
-    $disabled = ini_get('disable_functions');
-    if (is_string($disabled) && stripos($disabled, 'shell_exec') !== false) {
-        return null;
+
+    $disabled = (string) ini_get('disable_functions');
+
+    foreach ($bins as $bin) {
+        if ($bin !== 'curl' && !is_file($bin)) {
+            continue;
+        }
+
+        $out = null;
+        if (stripos($disabled, 'proc_open') === false && function_exists('proc_open')) {
+            $cmd = [$bin, '-sS', '--connect-timeout', '8', '--max-time', '15', '-k', '-L', $url];
+            $spec = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+            $proc = @proc_open($cmd, $spec, $pipes, null, null);
+            if ($proc !== false) {
+                fclose($pipes[0]);
+                $stdout = stream_get_contents($pipes[1]);
+                $stderr = stream_get_contents($pipes[2]);
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+                proc_close($proc);
+                if (is_string($stdout) && $stdout !== '') {
+                    $out = $stdout;
+                } elseif (is_string($stderr) && $stderr !== '' && cbr_xml_looks_valid($stderr)) {
+                    $out = $stderr;
+                }
+            }
+        }
+
+        if ($out === null && stripos($disabled, 'shell_exec') === false && function_exists('shell_exec')) {
+            $line = escapeshellarg($bin)
+                . ' -sS --connect-timeout 8 --max-time 15 -k -L '
+                . escapeshellarg($url)
+                . ' 2>&1';
+            $sh = shell_exec($line);
+            if (is_string($sh) && $sh !== '') {
+                $out = $sh;
+            }
+        }
+
+        if ($out !== null && cbr_xml_looks_valid($out)) {
+            return $out;
+        }
     }
-    $cmd = 'curl -fsS --connect-timeout 8 --max-time 15 -k ' . escapeshellarg($url) . ' 2>&1';
-    $out = shell_exec($cmd);
-    if (!is_string($out) || $out === '') {
-        return null;
-    }
-    if (stripos($out, 'ValCurs') !== false || stripos($out, '<?xml') !== false) {
-        return $out;
-    }
+
     return null;
 }
 
@@ -118,7 +160,7 @@ function fetch_cbr_xml(string $url): array
     }
 
     if (!extension_loaded('openssl')) {
-        json_fail(502, 'В PHP не включено расширение openssl (нужно для HTTPS). В php.ini раскомментируйте extension=openssl, либо включите extension=curl, либо установите Git for Windows (curl в PATH) и перезапустите сервер.');
+        json_fail(502, 'Не удалось вызвать системный curl (proc_open/shell_exec) и в PHP выключено openssl. В php.ini включите extension=openssl или extension=curl, либо снимите proc_open/shell_exec с disable_functions.');
     }
 
     if (!allow_url_fopen_enabled()) {
