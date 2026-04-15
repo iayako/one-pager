@@ -560,8 +560,8 @@ function initCbrEurButton() {
       } catch {
         throw new Error(
           res.ok
-            ? "Сервер вернул не JSON. Проверьте, что открыта страница по http(s), а не file://."
-            : `Ошибка ${res.status}: ${raw.slice(0, 200)}`
+            ? "Сервер вернул не JSON. Откройте страницу по http(s), а не file://."
+            : `Ошибка сервера (${res.status}).`
         );
       }
       if (!data || !data.ok) {

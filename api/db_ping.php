@@ -9,7 +9,7 @@ if (!file_exists($configPath)) {
     echo json_encode([
         'ok' => false,
         'error' => 'Missing api/config.php. Copy api/config.example.php and fill DB credentials.',
-    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    ], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -29,20 +29,18 @@ try {
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ]);
 
-    $stmt = $pdo->query('SELECT 1 AS ok');
-    $row = $stmt->fetch();
+    $pdo->query('SELECT 1')->closeCursor();
 
     echo json_encode([
         'ok' => true,
         'db' => 'connected',
-        'query_result' => $row,
         'time_utc' => gmdate('c'),
-    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    ], JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
     http_response_code(500);
     echo json_encode([
         'ok' => false,
         'db' => 'failed',
-        'error' => $e->getMessage(),
-    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        'error' => 'Ошибка подключения к БД',
+    ], JSON_UNESCAPED_UNICODE);
 }
