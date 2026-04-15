@@ -534,7 +534,17 @@ function initCbrEurButton() {
     btn.textContent = "…";
     try {
       const res = await fetch("api/cbr_eur.php", { cache: "no-store" });
-      const data = await res.json().catch(() => null);
+      const raw = await res.text();
+      let data;
+      try {
+        data = raw ? JSON.parse(raw) : null;
+      } catch {
+        throw new Error(
+          res.ok
+            ? "Сервер вернул не JSON. Проверьте, что открыта страница по http(s), а не file://."
+            : `Ошибка ${res.status}: ${raw.slice(0, 200)}`
+        );
+      }
       if (!data || !data.ok) {
         const err = data && data.error ? data.error : "Не удалось загрузить курс";
         throw new Error(err);

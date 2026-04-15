@@ -30,29 +30,89 @@ if ($dateParam !== '') {
 $dateReq = $dt->format('d/m/Y');
 $url = 'https://www.cbr.ru/scripts/XML_daily.asp?date_req=' . rawurlencode($dateReq);
 
-$ch = curl_init($url);
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_FOLLOWLOCATION => true,
-    CURLOPT_TIMEOUT => 15,
-    CURLOPT_CONNECTTIMEOUT => 8,
-    CURLOPT_HTTPHEADER => [
-        'Accept: application/xml,text/xml,*/*',
-        'User-Agent: one-pager-calculator/1.0',
-    ],
-]);
+/**
+ * Загрузка по HTTPS. На части установок Windows нет CA в PHP — тогда первая попытка падает по SSL;
+ * повторяем без проверки сертификата (публичные курсы ЦБ, не секретные данные).
+ */
+function fetch_cbr_xml(string $url): array
+{
+    if (function_exists('curl_init')) {
+        $opts = [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT => 15,
+            CURLOPT_CONNECTTIMEOUT => 8,
+            CURLOPT_HTTPHEADER => [
+                'Accept: application/xml,text/xml,*/*',
+                'User-Agent: one-pager-calculator/1.0',
+            ],
+        ];
 
-$body = curl_exec($ch);
-$errno = curl_errno($ch);
-$status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
+        $try = function (bool $insecureSsl) use ($url, $opts): array {
+            $ch = curl_init($url);
+            $all = $opts + [
+                CURLOPT_SSL_VERIFYPEER => !$insecureSsl,
+                CURLOPT_SSL_VERIFYHOST => $insecureSsl ? 0 : 2,
+            ];
+            curl_setopt_array($ch, $all);
+            $body = curl_exec($ch);
+            $errno = curl_errno($ch);
+            $errstr = curl_error($ch);
+            $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            return [$body, $errno, $errstr, $status];
+        };
 
-if ($errno !== 0 || $body === false) {
-    json_fail(502, 'Не удалось получить данные ЦБ');
+        [$body, $errno, $errstr, $status] = $try(false);
+
+        $sslFail = $errno !== 0 && ($body === false || $errno === 60
+            || stripos($errstr, 'SSL') !== false
+            || stripos($errstr, 'certificate') !== false);
+        if ($sslFail) {
+            [$body, $errno, $errstr, $status] = $try(true);
+        }
+
+        if ($errno !== 0 || $body === false) {
+            $detail = $errstr !== '' ? $errstr : ('curl #' . $errno);
+            json_fail(502, 'Не удалось получить данные ЦБ: ' . $detail);
+        }
+        if ($status !== 200) {
+            json_fail(502, 'ЦБ вернул ответ HTTP ' . $status);
+        }
+        return [$body];
+    }
+
+    $ctx = stream_context_create([
+        'http' => [
+            'timeout' => 15.0,
+            'header' => "Accept: application/xml,text/xml,*/*\r\nUser-Agent: one-pager-calculator/1.0\r\n",
+        ],
+        'ssl' => [
+            'verify_peer' => true,
+            'verify_peer_name' => true,
+        ],
+    ]);
+    $body = @file_get_contents($url, false, $ctx);
+    if ($body === false) {
+        $ctx2 = stream_context_create([
+            'http' => [
+                'timeout' => 15.0,
+                'header' => "Accept: application/xml,text/xml,*/*\r\nUser-Agent: one-pager-calculator/1.0\r\n",
+            ],
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+            ],
+        ]);
+        $body = @file_get_contents($url, false, $ctx2);
+    }
+    if ($body === false) {
+        json_fail(502, 'Не удалось получить данные ЦБ (нет расширения curl и ошибка HTTPS)');
+    }
+    return [$body];
 }
-if ($status !== 200) {
-    json_fail(502, 'ЦБ вернул ответ ' . $status);
-}
+
+[$body] = fetch_cbr_xml($url);
 
 $xml = @simplexml_load_string($body);
 if ($xml === false) {
