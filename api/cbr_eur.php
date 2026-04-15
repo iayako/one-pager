@@ -3,7 +3,8 @@ declare(strict_types=1);
 
 /**
  * Курс EUR → RUB по официальным данным ЦБ (ежедневный XML).
- * GET ?date=YYYY-MM-DD (опционально; по умолчанию сегодня по календарю ЦБ).
+ * GET ?date=YYYY-MM-DD — курс на указанную дату.
+ * Без date — тот же набор, что на странице «Официальные курсы» (XML без date_req = актуальная таблица).
  */
 
 header('Content-Type: application/json; charset=utf-8');
@@ -27,8 +28,14 @@ if ($dateParam !== '') {
     $dt = new DateTimeImmutable('now', new DateTimeZone('Europe/Moscow'));
 }
 
-$dateReq = $dt->format('d/m/Y');
-$url = 'https://www.cbr.ru/scripts/XML_daily.asp?date_req=' . rawurlencode($dateReq);
+// Без date_req ЦБ отдаёт ту же таблицу, что на https://www.cbr.ru/currency_base/daily/
+// С date_req=«сегодня по календарю» можно получить вчерашний курс после публикации новой таблицы.
+if ($dateParam === '') {
+    $url = 'https://www.cbr.ru/scripts/XML_daily.asp';
+} else {
+    $dateReq = $dt->format('d/m/Y');
+    $url = 'https://www.cbr.ru/scripts/XML_daily.asp?date_req=' . rawurlencode($dateReq);
+}
 
 function cbr_xml_looks_valid(string $s): bool
 {
@@ -231,11 +238,22 @@ if ($rubPerEur === null || !is_finite($rubPerEur) || $rubPerEur <= 0) {
 
 $cbrDate = isset($xml['Date']) ? (string) $xml['Date'] : '';
 
+$requestedDate = $dateParam !== '' ? $dt->format('Y-m-d') : '';
+if ($requestedDate === '' && $cbrDate !== '') {
+    $parsed = DateTimeImmutable::createFromFormat('d.m.Y', $cbrDate);
+    if ($parsed !== false) {
+        $requestedDate = $parsed->format('Y-m-d');
+    }
+}
+if ($requestedDate === '') {
+    $requestedDate = $dt->format('Y-m-d');
+}
+
 echo json_encode([
     'ok' => true,
     'rubPerEur' => round($rubPerEur, 6),
     'currency' => 'EUR',
     'nominal' => $nominal,
     'cbrDate' => $cbrDate,
-    'requestedDate' => $dt->format('Y-m-d'),
+    'requestedDate' => $requestedDate,
 ], JSON_UNESCAPED_UNICODE);
