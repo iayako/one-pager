@@ -20,6 +20,7 @@ jobs:
           cp index.html deploy/index.html
           cp styles.css deploy/styles.css
           cp app.js deploy/app.js
+          cp -r api deploy/api
 
       - name: Upload files to Timeweb via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
