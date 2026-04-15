@@ -31,6 +31,36 @@ $dateReq = $dt->format('d/m/Y');
 $url = 'https://www.cbr.ru/scripts/XML_daily.asp?date_req=' . rawurlencode($dateReq);
 
 /**
+ * Запрос URL через curl.exe в PATH (если в PHP отключены ext-curl и HTTPS-стримы).
+ * -k отключает проверку SSL (как запасной путь в dev).
+ */
+function fetch_cbr_via_system_curl(string $url): ?string
+{
+    if (!function_exists('shell_exec')) {
+        return null;
+    }
+    $disabled = ini_get('disable_functions');
+    if (is_string($disabled) && stripos($disabled, 'shell_exec') !== false) {
+        return null;
+    }
+    $cmd = 'curl -fsS --connect-timeout 8 --max-time 15 -k ' . escapeshellarg($url) . ' 2>&1';
+    $out = shell_exec($cmd);
+    if (!is_string($out) || $out === '') {
+        return null;
+    }
+    if (stripos($out, 'ValCurs') !== false || stripos($out, '<?xml') !== false) {
+        return $out;
+    }
+    return null;
+}
+
+function allow_url_fopen_enabled(): bool
+{
+    $v = strtolower((string) ini_get('allow_url_fopen'));
+    return in_array($v, ['1', 'on', 'true'], true);
+}
+
+/**
  * Загрузка по HTTPS. На части установок Windows нет CA в PHP — тогда первая попытка падает по SSL;
  * повторяем без проверки сертификата (публичные курсы ЦБ, не секретные данные).
  */
@@ -82,6 +112,19 @@ function fetch_cbr_xml(string $url): array
         return [$body];
     }
 
+    $fallback = fetch_cbr_via_system_curl($url);
+    if ($fallback !== null) {
+        return [$fallback];
+    }
+
+    if (!extension_loaded('openssl')) {
+        json_fail(502, 'В PHP не включено расширение openssl (нужно для HTTPS). В php.ini раскомментируйте extension=openssl, либо включите extension=curl, либо установите Git for Windows (curl в PATH) и перезапустите сервер.');
+    }
+
+    if (!allow_url_fopen_enabled()) {
+        json_fail(502, 'В php.ini выключено allow_url_fopen. Включите allow_url_fopen=On или установите расширение curl для PHP.');
+    }
+
     $ctx = stream_context_create([
         'http' => [
             'timeout' => 15.0,
@@ -93,6 +136,7 @@ function fetch_cbr_xml(string $url): array
         ],
     ]);
     $body = @file_get_contents($url, false, $ctx);
+    $err1 = $body === false && function_exists('error_get_last') ? error_get_last() : null;
     if ($body === false) {
         $ctx2 = stream_context_create([
             'http' => [
@@ -107,7 +151,15 @@ function fetch_cbr_xml(string $url): array
         $body = @file_get_contents($url, false, $ctx2);
     }
     if ($body === false) {
-        json_fail(502, 'Не удалось получить данные ЦБ (нет расширения curl и ошибка HTTPS)');
+        $hint = '';
+        if ($err1 !== null && isset($err1['message'])) {
+            $hint = ' (' . $err1['message'] . ')';
+        }
+        $again = fetch_cbr_via_system_curl($url);
+        if ($again !== null) {
+            return [$again];
+        }
+        json_fail(502, 'Не удалось получить данные ЦБ по HTTPS' . $hint . '. Включите extension=curl в php.ini или положите curl.exe в PATH (например из Git for Windows).');
     }
     return [$body];
 }
