@@ -523,6 +523,25 @@ function initAuctionPicker() {
   });
 }
 
+function isoDateToRu(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || "").trim());
+  if (!m) return "";
+  return `${m[3]}.${m[2]}.${m[1]}`;
+}
+
+function setCbrEurDateLine(data) {
+  const el = document.getElementById("cbr-eur-date");
+  if (!el) return;
+  if (!data) {
+    el.textContent = "Официальный курс ЦБ на дату: —";
+    return;
+  }
+  const raw = data.cbrDate ? String(data.cbrDate).trim() : "";
+  const fromIso = data.requestedDate ? isoDateToRu(data.requestedDate) : "";
+  const label = raw || fromIso || "—";
+  el.textContent = `Официальный курс ЦБ на дату: ${label}`;
+}
+
 function initCbrEurButton() {
   const btn = document.getElementById("btn-cbr-eur");
   const input = document.getElementById("rub-per-eur");
@@ -550,6 +569,7 @@ function initCbrEurButton() {
         throw new Error(err);
       }
       input.value = String(data.rubPerEur);
+      setCbrEurDateLine(data);
       input.dispatchEvent(new Event("input", { bubbles: true }));
       updateProgressiveSteps();
       const results = document.getElementById("results");
@@ -579,6 +599,7 @@ function fillExample() {
   document.getElementById("rub-per-usd").value = "80.99";
   document.getElementById("rub-per-yen").value = "0.5299";
   document.getElementById("rub-per-eur").value = "91.0034";
+  setCbrEurDateLine(null);
   setSelectedAuction("Aucnet", 110000);
   document.getElementById("vanning-yen").value = "40000";
   document.getElementById("usd-train").value = "2040";
