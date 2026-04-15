@@ -39,8 +39,14 @@
         <h2 class="panel__title">Курсы валют</h2>
         <div class="grid grid--rates">
           <label class="field">
-            <span class="field__label">¥ за 1 $ <span class="hint">(из курса Khan Bank / пересчёт)</span></span>
-            <input type="number" name="yenPerUsd" id="yen-per-usd" step="0.01" min="0" value="161.4" required placeholder="Например, 161.4" />
+            <span class="field__label">¥ за 1 $ <span class="hint">(Khan Bank: бэлэн бус зарах USD ÷ бэлэн бус авах JPY)</span></span>
+            <div class="auction-picker__row">
+              <input type="number" name="yenPerUsd" id="yen-per-usd" step="0.01" min="0" value="161.4" required placeholder="Например, 161.4" />
+              <button type="button" class="btn btn--ghost btn--pick" id="btn-khan-yen" title="Подставить ¥/$ по курсам Khan Bank (api/back/rates)">
+                Khan
+              </button>
+            </div>
+            <p class="field__note" id="khan-yen-note" aria-live="polite">Khan Bank: —</p>
           </label>
           <label class="field">
             <span class="field__label">₽ за 1 $ <span class="hint">АТБ</span></span>

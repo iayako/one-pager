@@ -529,6 +529,19 @@ function isoDateToRu(iso) {
   return `${m[3]}.${m[2]}.${m[1]}`;
 }
 
+function setKhanYenNote(data) {
+  const el = document.getElementById("khan-yen-note");
+  if (!el) return;
+  if (!data) {
+    el.textContent = "Khan Bank: —";
+    return;
+  }
+  const d = data.date || "—";
+  const usd = data.usdNonCashSellMnt != null ? data.usdNonCashSellMnt : "—";
+  const jpy = data.jpyNonCashBuyMnt != null ? data.jpyNonCashBuyMnt : "—";
+  el.textContent = `Khan Bank на ${d}: USD ${usd} ₮ (бэлэн бус зарах), JPY ${jpy} ₮ (бэлэн бус авах) → ¥/$ ${data.yenPerUsd != null ? data.yenPerUsd : "—"}`;
+}
+
 function setCbrEurDateLine(data) {
   const el = document.getElementById("cbr-eur-date");
   if (!el) return;
@@ -540,6 +553,50 @@ function setCbrEurDateLine(data) {
   const fromIso = data.requestedDate ? isoDateToRu(data.requestedDate) : "";
   const label = raw || fromIso || "—";
   el.textContent = `Официальный курс ЦБ на дату: ${label}`;
+}
+
+function initKhanYenButton() {
+  const btn = document.getElementById("btn-khan-yen");
+  const input = document.getElementById("yen-per-usd");
+  if (!btn || !input) return;
+
+  btn.addEventListener("click", async () => {
+    const prev = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "…";
+    try {
+      const res = await fetch("api/khan_rates.php", { cache: "no-store" });
+      const raw = await res.text();
+      let data;
+      try {
+        data = raw ? JSON.parse(raw) : null;
+      } catch {
+        throw new Error(
+          res.ok
+            ? "Сервер вернул не JSON. Откройте страницу по http(s), а не file://."
+            : `Ошибка сервера (${res.status}).`
+        );
+      }
+      if (!data || !data.ok) {
+        const err = data && data.error ? data.error : "Не удалось загрузить курс Khan Bank";
+        throw new Error(err);
+      }
+      input.value = String(data.yenPerUsd);
+      setKhanYenNote(data);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      updateProgressiveSteps();
+      const results = document.getElementById("results");
+      if (results && !results.classList.contains("results--hidden")) {
+        render(readForm());
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Ошибка загрузки";
+      alert(msg);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = prev;
+    }
+  });
 }
 
 function initCbrEurButton() {
@@ -596,6 +653,7 @@ function fillExample() {
   document.getElementById("engine-hp").setCustomValidity("");
 
   document.getElementById("yen-per-usd").value = "161.4";
+  setKhanYenNote(null);
   document.getElementById("rub-per-usd").value = "80.99";
   document.getElementById("rub-per-yen").value = "0.5299";
   document.getElementById("rub-per-eur").value = "91.0034";
@@ -626,6 +684,7 @@ document.getElementById("calc-form").addEventListener("change", updateProgressiv
 
 initTheme();
 initAuctionPicker();
+initKhanYenButton();
 initCbrEurButton();
 renderAuctionOptions();
 updateProgressiveSteps();
