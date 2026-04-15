@@ -2,13 +2,7 @@
  * Калькулятор по ТЗ: инвойс ¥/₽, комиссия АТБ, итог с таможней и лабораторией.
  */
 
-const FOB_OPTIONS = [
-  { value: 90000, label: "90 000 ¥" },
-  { value: 95000, label: "95 000 ¥" },
-  { value: 100000, label: "100 000 ¥" },
-  { value: 105000, label: "105 000 ¥" },
-  { value: 110000, label: "110 000 ¥" },
-];
+const THEME_STORAGE_KEY = "calculator-theme";
 
 /** Доп. комиссия аукциона от цены авто (¥), таблица из ТЗ */
 function auctionCommissionYen(auctionPrice) {
@@ -91,6 +85,10 @@ function readForm() {
     rubPerUsd: parseFloat(fd.get("rubPerUsd")),
     rubPerYen: parseFloat(fd.get("rubPerYen")),
     rubPerEur: parseFloat(fd.get("rubPerEur")),
+    vehicleAge: String(fd.get("vehicleAge") || ""),
+    engineType: String(fd.get("engineType") || ""),
+    engineDisplacementCc: parseFloat(String(fd.get("engineDisplacementCc"))),
+    enginePowerKw: parseFloat(String(fd.get("enginePowerKw"))),
     auctionYen: parseFloat(fd.get("auctionYen")),
     fobYen: parseFloat(fd.get("fobYen")),
     vanningYen: parseFloat(fd.get("vanningYen")),
@@ -102,10 +100,50 @@ function readForm() {
   };
 }
 
+function hasValue(el) {
+  if (!el) return false;
+  if (el.tagName === "SELECT") return el.value !== "";
+  return el.value.trim() !== "";
+}
+
+function updateProgressiveSteps() {
+  document.querySelectorAll(".progressive-step").forEach((step) => {
+    const required = (step.dataset.requires || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    const visible = required.every((id) => hasValue(document.getElementById(id)));
+    step.classList.toggle("is-hidden", !visible);
+  });
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  const toggle = document.getElementById("theme-toggle");
+  if (toggle) {
+    toggle.textContent = theme === "dark" ? "Светлая тема" : "Тёмная тема";
+  }
+}
+
+function initTheme() {
+  const saved = localStorage.getItem(THEME_STORAGE_KEY);
+  const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const initial = saved || (systemDark ? "dark" : "light");
+  applyTheme(initial);
+
+  const toggle = document.getElementById("theme-toggle");
+  if (!toggle) return;
+  toggle.addEventListener("click", () => {
+    const current = document.documentElement.getAttribute("data-theme") || "dark";
+    const next = current === "dark" ? "light" : "dark";
+    localStorage.setItem(THEME_STORAGE_KEY, next);
+    applyTheme(next);
+  });
+}
+
 function render(data) {
   const commission = auctionCommissionYen(data.auctionYen);
-  document.getElementById("commission-yen").textContent =
-    commission > 0 ? formatInt(commission) : "0";
 
   const japan = japanYenTotal(
     data.auctionYen,
@@ -155,11 +193,18 @@ function render(data) {
 }
 
 function fillExample() {
+  document.getElementById("auction-yen").value = "1802000";
+  document.getElementById("vehicle-age").value = "under3";
+  document.getElementById("engine-type").value = "gasoline";
+  document.getElementById("engine-cc").value = "2000";
+  document.getElementById("engine-kw").value = "150";
+  document.getElementById("engine-cc").setCustomValidity("");
+  document.getElementById("engine-kw").setCustomValidity("");
+
   document.getElementById("yen-per-usd").value = "161.4";
   document.getElementById("rub-per-usd").value = "80.99";
   document.getElementById("rub-per-yen").value = "0.5299";
   document.getElementById("rub-per-eur").value = "91.0034";
-  document.getElementById("auction-yen").value = "1802000";
   document.getElementById("fob-yen").value = "110000";
   document.getElementById("vanning-yen").value = "40000";
   document.getElementById("usd-train").value = "2040";
@@ -169,35 +214,21 @@ function fillExample() {
   document.getElementById("lab-rub").value = "40000";
 }
 
-function initFobSelect() {
-  const sel = document.getElementById("fob-yen");
-  sel.innerHTML = "";
-  FOB_OPTIONS.forEach((opt) => {
-    const o = document.createElement("option");
-    o.value = String(opt.value);
-    o.textContent = opt.label;
-    sel.appendChild(o);
-  });
-  sel.value = "110000";
-}
-
 document.getElementById("calc-form").addEventListener("submit", (e) => {
   e.preventDefault();
   render(readForm());
-});
-
-document.getElementById("auction-yen").addEventListener("input", () => {
-  const d = readForm();
-  const c = auctionCommissionYen(d.auctionYen);
-  document.getElementById("commission-yen").textContent =
-    c > 0 ? formatInt(c) : "0";
+  document.getElementById("results").classList.remove("results--hidden");
 });
 
 document.getElementById("btn-fill-example").addEventListener("click", () => {
   fillExample();
+  updateProgressiveSteps();
   render(readForm());
+  document.getElementById("results").classList.remove("results--hidden");
 });
 
-initFobSelect();
-fillExample();
-render(readForm());
+document.getElementById("calc-form").addEventListener("input", updateProgressiveSteps);
+document.getElementById("calc-form").addEventListener("change", updateProgressiveSteps);
+
+initTheme();
+updateProgressiveSteps();

@@ -13,15 +13,19 @@
   <div class="page">
     <header class="header">
       <div class="header__text">
-        <p class="eyebrow">Импорт из Японии · смета</p>
-        <h1>Калькулятор себестоимости</h1>
-        <p class="eyebrow">Маркер автодеплоя: 2026-04-15 16:20</p>
-        <p class="lede">
-          Расчёт инвойса в ¥ и ₽ и ориентировочного итога по правилам из техзадания.
-          Курсы и суммы подставляйте актуальные; эталонные значения из примера в ТЗ можно загрузить кнопкой ниже.
-        </p>
+        <h1>Расчет стоимости авто</h1>
+        <p class="lede">Сверху — курсы валют; ниже выберите автомобиль: объём и мощность появятся после базовых полей.</p>
+        <nav class="source-tabs" aria-label="Источник авто">
+          <button type="button" class="source-tabs__item is-active">Из Японии</button>
+          <button type="button" class="source-tabs__item" disabled>Из Кореи</button>
+          <button type="button" class="source-tabs__item" disabled>Из Китая</button>
+          <button type="button" class="source-tabs__item" disabled>Расчет пошлины</button>
+        </nav>
       </div>
       <div class="header__actions">
+        <button type="button" class="btn btn--ghost" id="theme-toggle" aria-label="Переключить тему">
+          Светлая тема
+        </button>
         <button type="button" class="btn btn--ghost" id="btn-fill-example" title="Подставить цифры из примера в ТЗ">
           Заполнить пример из ТЗ
         </button>
@@ -29,98 +33,110 @@
     </header>
 
     <form class="form" id="calc-form" novalidate>
-      <section class="panel">
+      <div class="form-defaults" hidden aria-hidden="true">
+        <input type="hidden" name="fobYen" id="fob-yen" value="110000" />
+        <input type="hidden" name="vanningYen" id="vanning-yen" value="40000" />
+        <input type="hidden" name="usdTrain" id="usd-train" value="2040" />
+        <input type="hidden" name="usdTrack" id="usd-track" value="2340" />
+        <input type="hidden" name="rubInInvoice" id="rub-in-invoice" value="47800" />
+        <input type="hidden" name="customsTotalRub" id="customs-total-rub" value="506719" />
+        <input type="hidden" name="labRub" id="lab-rub" value="40000" />
+      </div>
+
+      <section class="panel panel--compact panel--tight rates-panel">
         <h2 class="panel__title">Курсы валют</h2>
         <div class="grid grid--rates">
           <label class="field">
             <span class="field__label">¥ за 1 $ <span class="hint">(из курса Khan Bank / пересчёт)</span></span>
-            <input type="number" name="yenPerUsd" id="yen-per-usd" step="0.01" min="0" value="161.4" required />
+            <input type="number" name="yenPerUsd" id="yen-per-usd" step="0.01" min="0" value="161.4" required placeholder="Например, 161.4" />
           </label>
           <label class="field">
             <span class="field__label">₽ за 1 $ <span class="hint">АТБ</span></span>
-            <input type="number" name="rubPerUsd" id="rub-per-usd" step="0.01" min="0" value="80.99" required />
+            <input type="number" name="rubPerUsd" id="rub-per-usd" step="0.01" min="0" value="80.99" required placeholder="Например, 80.99" />
           </label>
           <label class="field">
             <span class="field__label">₽ за 1 ¥ <span class="hint">АТБ, денежные переводы</span></span>
-            <input type="number" name="rubPerYen" id="rub-per-yen" step="0.0001" min="0" value="0.5299" required />
+            <input type="number" name="rubPerYen" id="rub-per-yen" step="0.0001" min="0" value="0.5299" required placeholder="Например, 0.5299" />
           </label>
           <label class="field">
             <span class="field__label">₽ за 1 € <span class="hint">ЦБ · для пошлины</span></span>
-            <input type="number" name="rubPerEur" id="rub-per-eur" step="0.0001" min="0" value="91.0034" required />
+            <input type="number" name="rubPerEur" id="rub-per-eur" step="0.0001" min="0" value="91.0034" required placeholder="Например, 91.0034" />
           </label>
         </div>
       </section>
 
-      <section class="panel">
-        <h2 class="panel__title">Япония (инвойс, ¥)</h2>
-        <div class="grid grid--2">
-          <label class="field">
-            <span class="field__label">Цена ТС на аукционе, ¥</span>
-            <input type="number" name="auctionYen" id="auction-yen" step="1" min="0" value="1802000" required />
-          </label>
-          <label class="field">
-            <span class="field__label">FOB <span class="hint">доставка до ярда, ¥</span></span>
-            <select name="fobYen" id="fob-yen"></select>
-          </label>
-          <label class="field">
-            <span class="field__label">Крепление в контейнере (vanning), ¥</span>
-            <input type="number" name="vanningYen" id="vanning-yen" step="1" min="0" value="40000" required />
-          </label>
-          <div class="field field--readonly">
-            <span class="field__label">Доп. комиссия аукциона, ¥ <span class="hint">по таблице ТЗ</span></span>
-            <output class="output-pill" id="commission-yen" for="auction-yen">—</output>
+      <section class="panel wizard" id="vehicle-wizard" aria-label="Данные об автомобиле">
+        <h2 class="panel__title">Автомобиль</h2>
+
+        <div id="wizard-step-1" class="wizard__pane">
+          <div class="grid grid--2">
+            <label class="field">
+              <span class="field__label">Цена авто, ¥</span>
+              <input type="number" name="auctionYen" id="auction-yen" step="1" min="0" required placeholder="Например, 1 802 000" />
+            </label>
+            <label class="field">
+              <span class="field__label">Возраст автомобиля</span>
+              <select name="vehicleAge" id="vehicle-age" required>
+                <option value="">Выберите</option>
+                <option value="under3">Младше 3 лет</option>
+                <option value="3to5">От 3 до 5 лет</option>
+                <option value="over5">Старше 5 лет</option>
+              </select>
+            </label>
+            <label class="field field--full">
+              <span class="field__label">Тип двигателя</span>
+              <select name="engineType" id="engine-type" required>
+                <option value="">Выберите</option>
+                <option value="gasoline">ДВС бензиновый</option>
+                <option value="hybrid">Гибрид</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div
+          id="wizard-step-2"
+          class="wizard__pane wizard__pane--below progressive-step is-hidden"
+          data-requires="auction-yen,vehicle-age,engine-type"
+        >
+          <div class="grid grid--2">
+            <label class="field">
+              <span class="field__label">Объём двигателя, см³</span>
+              <input
+                type="number"
+                name="engineDisplacementCc"
+                id="engine-cc"
+                step="1"
+                min="1"
+                required
+                placeholder="Например, 2000"
+              />
+            </label>
+            <label class="field">
+              <span class="field__label">Мощность, кВт</span>
+              <input
+                type="number"
+                name="enginePowerKw"
+                id="engine-kw"
+                step="0.1"
+                min="0.1"
+                required
+                placeholder="Например, 150"
+              />
+            </label>
           </div>
         </div>
       </section>
 
-      <section class="panel">
-        <h2 class="panel__title">До Монголии (USD → ¥ по курсу выше)</h2>
-        <p class="panel__note">
-          В ТЗ отдельно указаны базовые суммы доставки: <strong>Train</strong> и <strong>Track</strong>. Остальные $-строки при необходимости учитывайте вручную в полях ниже.
-        </p>
-        <div class="grid grid--2">
-          <label class="field">
-            <span class="field__label">Доставка Train (TRAINMOD), $</span>
-            <input type="number" name="usdTrain" id="usd-train" step="1" min="0" value="2040" required />
-          </label>
-          <label class="field">
-            <span class="field__label">Доставка Track (TRACKMOD), $</span>
-            <input type="number" name="usdTrack" id="usd-track" step="1" min="0" value="2340" required />
-          </label>
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2 class="panel__title">Рубли в инвойсе (перевод в ¥)</h2>
-        <p class="panel__note">
-          В примере ТЗ в инвойсе в ¥ переводится строка «таможенная очистка» (47&nbsp;800&nbsp;₽). Прочие ₽-расходы на границе могут оплачиваться отдельно и не входить в ¥-инвойс — уточняйте по вашей схеме.
-        </p>
-        <label class="field">
-          <span class="field__label">Сумма в ₽ для перевода в инвойс (¥) <span class="hint">по умолчанию только таможенная очистка</span></span>
-          <input type="number" name="rubInInvoice" id="rub-in-invoice" step="1" min="0" value="47800" />
-        </label>
-      </section>
-
-      <section class="panel">
-        <h2 class="panel__title">Таможня и итог в ₽</h2>
-        <div class="grid grid--2">
-          <label class="field">
-            <span class="field__label">Таможенные платежи (всего), ₽ <span class="hint">пошлина, сборы, утилизация…</span></span>
-            <input type="number" name="customsTotalRub" id="customs-total-rub" step="1" min="0" value="506719" />
-          </label>
-          <label class="field">
-            <span class="field__label">Лаборатория / ЭПТС, ₽</span>
-            <input type="number" name="labRub" id="lab-rub" step="1" min="0" value="40000" />
-          </label>
-        </div>
-      </section>
-
-      <div class="form__submit-wrap">
+      <div
+        class="form__submit-wrap progressive-step is-hidden"
+        data-requires="auction-yen,vehicle-age,engine-type,engine-cc,engine-kw,yen-per-usd,rub-per-usd,rub-per-yen,rub-per-eur"
+      >
         <button type="submit" class="btn btn--primary" id="btn-calc">Рассчитать</button>
       </div>
     </form>
 
-    <section class="results" id="results" aria-live="polite">
+    <section class="results results--hidden" id="results" aria-live="polite">
       <h2 class="results__heading">Результаты</h2>
       <div class="results__grid">
         <article class="result-card result-card--train">
