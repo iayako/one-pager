@@ -312,12 +312,12 @@ function render(data) {
   document.getElementById("out-rub-invoice-track-yen").textContent = formatYen(rubYen);
   document.getElementById("out-invoice-yen-train").textContent = formatYen(invoiceYenTrain);
   document.getElementById("out-invoice-yen-track").textContent = formatYen(invoiceYenTrack);
-  document.getElementById("out-invoice-base-train").textContent = formatRub(bankTrain.baseRub);
-  document.getElementById("out-invoice-fee-train").textContent = formatRub(bankTrain.feeRub);
   document.getElementById("out-invoice-rub-train").textContent = formatRub(bankTrain.totalRub);
-  document.getElementById("out-invoice-base-track").textContent = formatRub(bankTrack.baseRub);
-  document.getElementById("out-invoice-fee-track").textContent = formatRub(bankTrack.feeRub);
   document.getElementById("out-invoice-rub-track").textContent = formatRub(bankTrack.totalRub);
+  document.getElementById("out-customs-train").textContent = formatRub(customs);
+  document.getElementById("out-customs-track").textContent = formatRub(customs);
+  document.getElementById("out-lab-train").textContent = formatRub(lab);
+  document.getElementById("out-lab-track").textContent = formatRub(lab);
   document.getElementById("out-grand-train").textContent = formatRub(grandTrain);
   document.getElementById("out-grand-track").textContent = formatRub(grandTrack);
 }
