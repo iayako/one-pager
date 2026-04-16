@@ -138,7 +138,8 @@ function fetch_cbr_xml(string $url): array
             $errno = curl_errno($ch);
             $errstr = curl_error($ch);
             $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
+            // Начиная с PHP 8.0 curl_close() no-op, в 8.5 помечен deprecated.
+            // Не вызываем, чтобы предупреждения не попадали в JSON-ответ.
             return [$body, $errno, $errstr, $status];
         };
 

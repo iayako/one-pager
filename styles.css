@@ -293,15 +293,12 @@ h1 {
   white-space: nowrap;
 }
 
-.rates-updated {
-  margin-top: 0.75rem;
-  white-space: pre-line;
-  font-size: 0.78rem;
-  line-height: 1.45;
-  padding: 0.55rem 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
+.rate__date {
+  grid-column: 2 / -1;
+  font-size: 0.69rem;
+  color: var(--muted);
+  white-space: nowrap;
+  opacity: 0.9;
 }
 
 .grid--2 {

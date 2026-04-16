@@ -125,7 +125,8 @@ function fetch_khan_json(string $url): string
             $errno = curl_errno($ch);
             $err = curl_error($ch);
             $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
+            // Начиная с PHP 8.0 curl_close() no-op, в 8.5 помечен deprecated.
+            // Не вызываем, чтобы предупреждения не ломали JSON-ответ.
             return [$body, $errno, $err, $code];
         };
 

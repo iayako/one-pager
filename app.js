@@ -489,6 +489,11 @@ function setRateText(id, value) {
   if (el) el.textContent = value;
 }
 
+function setRateDateText(id, dateLabel) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = `Актуален на: ${dateLabel || "—"}`;
+}
+
 function updateRatesUIFromInputs() {
   const yenPerUsd = Number(document.getElementById("yen-per-usd")?.value);
   const rubPerUsd = Number(document.getElementById("rub-per-usd")?.value);
@@ -501,24 +506,17 @@ function updateRatesUIFromInputs() {
   setRateText("rate-rub-per-eur", formatRate(rubPerEur, 4));
 }
 
-function formatLocalDateTime(dt) {
+function formatLocalDate(dt) {
   try {
     const d = dt instanceof Date ? dt : new Date(dt);
-    return d.toLocaleString("ru-RU", {
+    return d.toLocaleDateString("ru-RU", {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
     });
   } catch {
     return "";
   }
-}
-
-function setRatesUpdatedLine(text) {
-  const el = document.getElementById("rates-updated");
-  if (el) el.textContent = text;
 }
 
 function deriveRubPerYenIfPossible() {
@@ -538,7 +536,11 @@ function deriveRubPerYenIfPossible() {
 
 async function initRatesAuto() {
   const now = new Date();
-  setRatesUpdatedLine("Обновление курсов\nВремя: загрузка…\nИсточники: —");
+  const nowDate = formatLocalDate(now) || "—";
+  setRateDateText("rate-date-rub-per-usd", "—");
+  setRateDateText("rate-date-yen-per-usd", "—");
+  setRateDateText("rate-date-rub-per-yen", "—");
+  setRateDateText("rate-date-rub-per-eur", "—");
 
   const inputYenPerUsd = document.getElementById("yen-per-usd");
   const inputRubPerUsd = document.getElementById("rub-per-usd");
@@ -561,22 +563,29 @@ async function initRatesAuto() {
   ];
 
   const results = await Promise.all(tasks);
-  const okSources = [];
-  const sourceDates = [];
+  let khanDateLabel = "";
+  let atbDateLabel = "";
+  let cbrDateLabel = "";
 
   for (const r of results) {
     if (r && r.data && r.data.ok) {
-      okSources.push(r.src);
       if (r.src === "Khan Bank" && inputYenPerUsd && typeof r.data.yenPerUsd === "number") {
         inputYenPerUsd.value = String(r.data.yenPerUsd);
-        if (r.data.date) sourceDates.push(`Khan: ${r.data.date}`);
+        const khanDateRu = r.data.date ? isoDateToRu(r.data.date) : "";
+        if (khanDateRu) {
+          khanDateLabel = khanDateRu;
+        }
       }
       if (r.src === "АТБ" && inputRubPerUsd && typeof r.data.rubPerUsd === "number") {
         inputRubPerUsd.value = String(r.data.rubPerUsd);
+        atbDateLabel = nowDate;
       }
       if (r.src === "ЦБ" && inputRubPerEur && typeof r.data.rubPerEur === "number") {
         inputRubPerEur.value = String(r.data.rubPerEur);
-        if (r.data.requestedDate) sourceDates.push(`ЦБ: ${r.data.requestedDate}`);
+        const cbrDateRu = r.data.requestedDate ? isoDateToRu(r.data.requestedDate) : "";
+        if (cbrDateRu) {
+          cbrDateLabel = cbrDateRu;
+        }
       }
     }
   }
@@ -587,16 +596,16 @@ async function initRatesAuto() {
     // оставляем дефолт, но UI обновим
   }
 
+  setRateDateText("rate-date-yen-per-usd", khanDateLabel || "—");
+  setRateDateText("rate-date-rub-per-usd", atbDateLabel || "—");
+  setRateDateText("rate-date-rub-per-eur", cbrDateLabel || "—");
+  setRateDateText(
+    "rate-date-rub-per-yen",
+    derived ? (khanDateLabel || atbDateLabel || nowDate) : "—"
+  );
+
   updateRatesUIFromInputs();
   updateProgressiveSteps();
-
-  const lines = [
-    "Обновление курсов",
-    `Время: ${formatLocalDateTime(now) || "—"}`,
-    `Источники: ${okSources.length ? okSources.join(", ") : "—"}`,
-    `Даты курсов: ${sourceDates.length ? sourceDates.join(", ") : "—"}`,
-  ];
-  setRatesUpdatedLine(lines.join("\n"));
 }
 
 function computeCalculation(data) {
