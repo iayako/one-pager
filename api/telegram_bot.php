@@ -160,67 +160,122 @@ function formatShortJson(array $data, int $maxLen = 600): string
     return implode("\n", $parts);
 }
 
-// ---- Обработка комманд ----
+/**
+ * Переподключение к БД при обрыве соединения.
+ */
+function reconnectPdo(PDO &$pdo): void
+{
+    global $dsn, $dbConfig;
+
+    $pdo = new PDO($dsn, $dbConfig['user'], $dbConfig['password'], [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    ]);
+}
 
 /**
  * Обработать команду /last.
  */
-function handleLastCommand(PDO $pdo): ?string
+function handleLastCommand(PDO &$pdo): ?string
 {
-    $stmt = $pdo->query(
-        'SELECT id, created_at, inputs_json, outputs_json FROM calculation_log ORDER BY id DESC LIMIT 1'
-    );
-    $row = $stmt->fetch();
+    $attempts = 0;
 
-    if (!$row) {
-        return 'В базе пока нет ни одного расчёта.';
+    while (true) {
+        $attempts++;
+
+        try {
+            $stmt = $pdo->query(
+                'SELECT id, created_at, inputs_json, outputs_json FROM calculation_log ORDER BY id DESC LIMIT 1'
+            );
+            $row = $stmt->fetch();
+
+            if (!$row) {
+                return 'В базе пока нет ни одного расчёта.';
+            }
+
+            $inputs = json_decode((string) $row['inputs_json'], true);
+            $outputs = json_decode((string) $row['outputs_json'], true);
+
+            $inputsText = is_array($inputs) ? formatShortJson($inputs) : '[не удалось разобрать JSON]';
+            $outputsText = is_array($outputs) ? formatShortJson($outputs) : '[не удалось разобрать JSON]';
+
+            $text = "Последний расчёт #" . (int) $row['id'] . "\n";
+            $text .= "Создан: " . (string) $row['created_at'] . "\n\n";
+            $text .= "*Входные данные:*\n";
+            $text .= $inputsText . "\n\n";
+            $text .= "*Результаты:*\n";
+            $text .= $outputsText;
+
+            return $text;
+        } catch (PDOException $e) {
+            $code = (string) $e->getCode();
+            $msg = $e->getMessage();
+            $isGone =
+                $code === '2006'
+                || $code === '2013'
+                || str_contains($msg, 'server has gone away');
+
+            if ($isGone && $attempts < 2) {
+                reconnectPdo($pdo);
+                continue;
+            }
+
+            throw $e;
+        }
     }
-
-    $inputs = json_decode((string) $row['inputs_json'], true);
-    $outputs = json_decode((string) $row['outputs_json'], true);
-
-    $inputsText = is_array($inputs) ? formatShortJson($inputs) : '[не удалось разобрать JSON]';
-    $outputsText = is_array($outputs) ? formatShortJson($outputs) : '[не удалось разобрать JSON]';
-
-    $text = "Последний расчёт #" . (int) $row['id'] . "\n";
-    $text .= "Создан: " . (string) $row['created_at'] . "\n\n";
-    $text .= "*Входные данные:*\n";
-    $text .= $inputsText . "\n\n";
-    $text .= "*Результаты:*\n";
-    $text .= $outputsText;
-
-    return $text;
 }
 
 /**
  * Обработать команду /id <N>.
  */
-function handleIdCommand(PDO $pdo, int $id): ?string
+function handleIdCommand(PDO &$pdo, int $id): ?string
 {
-    $stmt = $pdo->prepare(
-        'SELECT id, created_at, inputs_json, outputs_json FROM calculation_log WHERE id = :id LIMIT 1'
-    );
-    $stmt->execute([':id' => $id]);
-    $row = $stmt->fetch();
+    $attempts = 0;
 
-    if (!$row) {
-        return 'Расчёт с таким ID не найден: ' . $id;
+    while (true) {
+        $attempts++;
+
+        try {
+            $stmt = $pdo->prepare(
+                'SELECT id, created_at, inputs_json, outputs_json FROM calculation_log WHERE id = :id LIMIT 1'
+            );
+            $stmt->execute([':id' => $id]);
+            $row = $stmt->fetch();
+
+            if (!$row) {
+                return 'Расчёт с таким ID не найден: ' . $id;
+            }
+
+            $inputs = json_decode((string) $row['inputs_json'], true);
+            $outputs = json_decode((string) $row['outputs_json'], true);
+
+            $inputsText = is_array($inputs) ? formatShortJson($inputs) : '[не удалось разобрать JSON]';
+            $outputsText = is_array($outputs) ? formatShortJson($outputs) : '[не удалось разобрать JSON]';
+
+            $text = "Расчёт #" . (int) $row['id'] . "\n";
+            $text .= "Создан: " . (string) $row['created_at'] . "\n\n";
+            $text .= "*Входные данные:*\n";
+            $text .= $inputsText . "\n\n";
+            $text .= "*Результаты:*\n";
+            $text .= $outputsText;
+
+            return $text;
+        } catch (PDOException $e) {
+            $code = (string) $e->getCode();
+            $msg = $e->getMessage();
+            $isGone =
+                $code === '2006'
+                || $code === '2013'
+                || str_contains($msg, 'server has gone away');
+
+            if ($isGone && $attempts < 2) {
+                reconnectPdo($pdo);
+                continue;
+            }
+
+            throw $e;
+        }
     }
-
-    $inputs = json_decode((string) $row['inputs_json'], true);
-    $outputs = json_decode((string) $row['outputs_json'], true);
-
-    $inputsText = is_array($inputs) ? formatShortJson($inputs) : '[не удалось разобрать JSON]';
-    $outputsText = is_array($outputs) ? formatShortJson($outputs) : '[не удалось разобрать JSON]';
-
-    $text = "Расчёт #" . (int) $row['id'] . "\n";
-    $text .= "Создан: " . (string) $row['created_at'] . "\n\n";
-    $text .= "*Входные данные:*\n";
-    $text .= $inputsText . "\n\n";
-    $text .= "*Результаты:*\n";
-    $text .= $outputsText;
-
-    return $text;
 }
 
 // ---- Основной цикл long polling ----
