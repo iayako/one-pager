@@ -656,6 +656,57 @@ function setCbrEurDateLine(data) {
   el.textContent = `Официальный курс ЦБ на дату: ${label}`;
 }
 
+function initAtbUsdButton() {
+  const btn = document.getElementById("btn-atb-usd");
+  const input = document.getElementById("rub-per-usd");
+  if (!btn || !input) return;
+
+  btn.addEventListener("click", async () => {
+    const prev = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "…";
+    try {
+      const res = await fetch(resolveAppUrl("api/atb_usd_ulanude.php"), {
+        cache: "no-store",
+      });
+      const raw = await res.text();
+      let data;
+      try {
+        data = raw ? JSON.parse(raw) : null;
+      } catch {
+        throw new Error(
+          res.ok
+            ? "Сервер АТБ вернул не JSON. Откройте страницу по http(s), а не file://."
+            : `Ошибка сервера АТБ (${res.status}).`
+        );
+      }
+      if (!data || !data.ok) {
+        const err =
+          data && data.error
+            ? data.error
+            : "Не удалось загрузить курс АТБ по USD";
+        throw new Error(err);
+      }
+      if (typeof data.rubPerUsd !== "number" || !isFinite(data.rubPerUsd)) {
+        throw new Error("Ответ АТБ не содержит rubPerUsd.");
+      }
+      input.value = String(data.rubPerUsd);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      updateProgressiveSteps();
+      const results = document.getElementById("results");
+      if (results && !results.classList.contains("results--hidden")) {
+        render(readForm());
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Ошибка загрузки курса АТБ";
+      alert(msg);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = prev;
+    }
+  });
+}
+
 function initKhanYenButton() {
   const btn = document.getElementById("btn-khan-yen");
   const input = document.getElementById("yen-per-usd");
@@ -797,6 +848,7 @@ function wireFormListeners() {
     initAuctionPicker();
     initKhanYenButton();
     initCbrEurButton();
+    initAtbUsdButton();
     renderAuctionOptions();
     updateProgressiveSteps();
     wireFormListeners();

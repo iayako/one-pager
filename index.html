@@ -50,7 +50,17 @@
           </label>
           <label class="field">
             <span class="field__label">₽ за 1 $ <span class="hint">АТБ</span></span>
-            <input type="number" name="rubPerUsd" id="rub-per-usd" step="0.01" min="0" value="80.99" required placeholder="Например, 80.99" />
+            <div class="auction-picker__row">
+              <input type="number" name="rubPerUsd" id="rub-per-usd" step="0.01" min="0" value="80.99" required placeholder="Например, 80.99" />
+              <button
+                type="button"
+                class="btn btn--ghost btn--pick"
+                id="btn-atb-usd"
+                title="Подставить ₽/$ по курсу АТБ для Улан-Удэ"
+              >
+                АТБ
+              </button>
+            </div>
           </label>
           <label class="field">
             <span class="field__label">₽ за 1 ¥ <span class="hint">АТБ, денежные переводы</span></span>
