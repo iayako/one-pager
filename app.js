@@ -441,7 +441,12 @@ function applyTheme(theme) {
   document.documentElement.setAttribute("data-theme", theme);
   const toggle = document.getElementById("theme-toggle");
   if (toggle) {
-    toggle.textContent = theme === "dark" ? "Светлая тема" : "Тёмная тема";
+    const icon =
+      theme === "dark"
+        ? `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v1.2a1 1 0 1 1-2 0V4a1 1 0 0 1 1-1Zm0 16.8a1 1 0 0 1 1 1V22a1 1 0 1 1-2 0v-1.2a1 1 0 0 1 1-1ZM4 11a1 1 0 0 1 1 1 7 7 0 0 0 7 7 1 1 0 1 1 0 2A9 9 0 0 1 3 12a1 1 0 0 1 1-1Zm17-1a1 1 0 0 1 1 1 9 9 0 0 1-9 9 1 1 0 1 1 0-2 7 7 0 0 0 7-7 1 1 0 0 1 1-1ZM6.22 6.22a1 1 0 0 1 1.42 0l.85.85a1 1 0 1 1-1.42 1.42l-.85-.85a1 1 0 0 1 0-1.42Zm10.44 10.44a1 1 0 0 1 1.42 0l.85.85a1 1 0 0 1-1.42 1.42l-.85-.85a1 1 0 0 1 0-1.42ZM3 12a1 1 0 0 1 1-1h1.2a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1Zm16.8 0a1 1 0 0 1 1-1H22a1 1 0 1 1 0 2h-1.2a1 1 0 0 1-1-1ZM6.22 17.78a1 1 0 0 1 0-1.42l.85-.85a1 1 0 1 1 1.42 1.42l-.85.85a1 1 0 0 1-1.42 0Zm10.44-10.44a1 1 0 0 1 0-1.42l.85-.85a1 1 0 0 1 1.42 1.42l-.85.85a1 1 0 0 1-1.42 0ZM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" fill="currentColor"/></svg>`
+        : `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 13.7a8.2 8.2 0 0 1-10.7-10 1 1 0 0 0-1.35-1.18A10 10 0 1 0 22.18 15a1 1 0 0 0-1.18-1.3Z" fill="currentColor"/></svg>`;
+    toggle.innerHTML = `${icon}<span class="sr-only">Переключить тему</span>`;
+    toggle.setAttribute("aria-label", theme === "dark" ? "Светлая тема" : "Тёмная тема");
   }
 }
 
@@ -468,6 +473,127 @@ function initTheme() {
     }
     applyTheme(next);
   });
+}
+
+function formatRate(n, digits) {
+  const v = Number(n);
+  if (!Number.isFinite(v) || v <= 0) return "—";
+  return v.toLocaleString("ru-RU", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
+function setRateText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
+function updateRatesUIFromInputs() {
+  const yenPerUsd = Number(document.getElementById("yen-per-usd")?.value);
+  const rubPerUsd = Number(document.getElementById("rub-per-usd")?.value);
+  const rubPerYen = Number(document.getElementById("rub-per-yen")?.value);
+  const rubPerEur = Number(document.getElementById("rub-per-eur")?.value);
+
+  setRateText("rate-yen-per-usd", formatRate(yenPerUsd, 4));
+  setRateText("rate-rub-per-usd", formatRate(rubPerUsd, 2));
+  setRateText("rate-rub-per-yen", formatRate(rubPerYen, 6));
+  setRateText("rate-rub-per-eur", formatRate(rubPerEur, 4));
+}
+
+function formatLocalDateTime(dt) {
+  try {
+    const d = dt instanceof Date ? dt : new Date(dt);
+    return d.toLocaleString("ru-RU", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
+function setRatesUpdatedLine(text) {
+  const el = document.getElementById("rates-updated");
+  if (el) el.textContent = text;
+}
+
+function deriveRubPerYenIfPossible() {
+  const yenPerUsdEl = document.getElementById("yen-per-usd");
+  const rubPerUsdEl = document.getElementById("rub-per-usd");
+  const rubPerYenEl = document.getElementById("rub-per-yen");
+  if (!yenPerUsdEl || !rubPerUsdEl || !rubPerYenEl) return false;
+  const yenPerUsd = Number(yenPerUsdEl.value);
+  const rubPerUsd = Number(rubPerUsdEl.value);
+  if (!Number.isFinite(yenPerUsd) || yenPerUsd <= 0) return false;
+  if (!Number.isFinite(rubPerUsd) || rubPerUsd <= 0) return false;
+  const rubPerYen = rubPerUsd / yenPerUsd;
+  if (!Number.isFinite(rubPerYen) || rubPerYen <= 0) return false;
+  rubPerYenEl.value = String(rubPerYen);
+  return true;
+}
+
+async function initRatesAuto() {
+  const now = new Date();
+  setRatesUpdatedLine("Последнее обновление: загрузка…");
+
+  const inputYenPerUsd = document.getElementById("yen-per-usd");
+  const inputRubPerUsd = document.getElementById("rub-per-usd");
+  const inputRubPerYen = document.getElementById("rub-per-yen");
+  const inputRubPerEur = document.getElementById("rub-per-eur");
+
+  const tasks = [
+    fetch(resolveAppUrl("api/khan_rates.php"), { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => ({ src: "Khan Bank", data }))
+      .catch((e) => ({ src: "Khan Bank", error: e })),
+    fetch(resolveAppUrl("api/atb_usd_ulanude.php"), { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => ({ src: "АТБ", data }))
+      .catch((e) => ({ src: "АТБ", error: e })),
+    fetch(resolveAppUrl("api/cbr_eur.php"), { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => ({ src: "ЦБ", data }))
+      .catch((e) => ({ src: "ЦБ", error: e })),
+  ];
+
+  const results = await Promise.all(tasks);
+  const okSources = [];
+  const sourceDates = [];
+
+  for (const r of results) {
+    if (r && r.data && r.data.ok) {
+      okSources.push(r.src);
+      if (r.src === "Khan Bank" && inputYenPerUsd && typeof r.data.yenPerUsd === "number") {
+        inputYenPerUsd.value = String(r.data.yenPerUsd);
+        if (r.data.date) sourceDates.push(`Khan: ${r.data.date}`);
+      }
+      if (r.src === "АТБ" && inputRubPerUsd && typeof r.data.rubPerUsd === "number") {
+        inputRubPerUsd.value = String(r.data.rubPerUsd);
+      }
+      if (r.src === "ЦБ" && inputRubPerEur && typeof r.data.rubPerEur === "number") {
+        inputRubPerEur.value = String(r.data.rubPerEur);
+        if (r.data.requestedDate) sourceDates.push(`ЦБ: ${r.data.requestedDate}`);
+      }
+    }
+  }
+
+  // ₽/¥ делаем без ручного ввода: выводим из ₽/$ и ¥/$
+  const derived = deriveRubPerYenIfPossible();
+  if (!derived && inputRubPerYen) {
+    // оставляем дефолт, но UI обновим
+  }
+
+  updateRatesUIFromInputs();
+  updateProgressiveSteps();
+
+  const base = `Последнее обновление: ${formatLocalDateTime(now)}`;
+  const tail = okSources.length ? ` · источники: ${okSources.join(", ")}` : " · источники: —";
+  const dates = sourceDates.length ? ` · даты: ${sourceDates.join(", ")}` : "";
+  setRatesUpdatedLine(base + tail + dates);
 }
 
 function computeCalculation(data) {
@@ -656,168 +782,6 @@ function setCbrEurDateLine(data) {
   el.textContent = `Официальный курс ЦБ на дату: ${label}`;
 }
 
-function initAtbUsdButton() {
-  const btn = document.getElementById("btn-atb-usd");
-  const input = document.getElementById("rub-per-usd");
-  if (!btn || !input) return;
-
-  btn.addEventListener("click", async () => {
-    const prev = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = "…";
-    try {
-      const res = await fetch(resolveAppUrl("api/atb_usd_ulanude.php"), {
-        cache: "no-store",
-      });
-      const raw = await res.text();
-      let data;
-      try {
-        data = raw ? JSON.parse(raw) : null;
-      } catch {
-        throw new Error(
-          res.ok
-            ? "Сервер АТБ вернул не JSON. Откройте страницу по http(s), а не file://."
-            : `Ошибка сервера АТБ (${res.status}).`
-        );
-      }
-      if (!data || !data.ok) {
-        const err =
-          data && data.error
-            ? data.error
-            : "Не удалось загрузить курс АТБ по USD";
-        throw new Error(err);
-      }
-      if (typeof data.rubPerUsd !== "number" || !isFinite(data.rubPerUsd)) {
-        throw new Error("Ответ АТБ не содержит rubPerUsd.");
-      }
-      input.value = String(data.rubPerUsd);
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      updateProgressiveSteps();
-      const results = document.getElementById("results");
-      if (results && !results.classList.contains("results--hidden")) {
-        render(readForm());
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Ошибка загрузки курса АТБ";
-      alert(msg);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = prev;
-    }
-  });
-}
-
-function initKhanYenButton() {
-  const btn = document.getElementById("btn-khan-yen");
-  const input = document.getElementById("yen-per-usd");
-  if (!btn || !input) return;
-
-  btn.addEventListener("click", async () => {
-    const prev = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = "…";
-    try {
-      const res = await fetch(resolveAppUrl("api/khan_rates.php"), { cache: "no-store" });
-      const raw = await res.text();
-      let data;
-      try {
-        data = raw ? JSON.parse(raw) : null;
-      } catch {
-        throw new Error(
-          res.ok
-            ? "Сервер вернул не JSON. Откройте страницу по http(s), а не file://."
-            : `Ошибка сервера (${res.status}).`
-        );
-      }
-      if (!data || !data.ok) {
-        const err = data && data.error ? data.error : "Не удалось загрузить курс Khan Bank";
-        throw new Error(err);
-      }
-      input.value = String(data.yenPerUsd);
-      setKhanYenNote(data);
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      updateProgressiveSteps();
-      const results = document.getElementById("results");
-      if (results && !results.classList.contains("results--hidden")) {
-        render(readForm());
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Ошибка загрузки";
-      alert(msg);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = prev;
-    }
-  });
-}
-
-function initCbrEurButton() {
-  const btn = document.getElementById("btn-cbr-eur");
-  const input = document.getElementById("rub-per-eur");
-  if (!btn || !input) return;
-
-  btn.addEventListener("click", async () => {
-    const prev = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = "…";
-    try {
-      const res = await fetch(resolveAppUrl("api/cbr_eur.php"), { cache: "no-store" });
-      const raw = await res.text();
-      let data;
-      try {
-        data = raw ? JSON.parse(raw) : null;
-      } catch {
-        throw new Error(
-          res.ok
-            ? "Сервер вернул не JSON. Откройте страницу по http(s), а не file://."
-            : `Ошибка сервера (${res.status}).`
-        );
-      }
-      if (!data || !data.ok) {
-        const err = data && data.error ? data.error : "Не удалось загрузить курс";
-        throw new Error(err);
-      }
-      input.value = String(data.rubPerEur);
-      setCbrEurDateLine(data);
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      updateProgressiveSteps();
-      const results = document.getElementById("results");
-      if (results && !results.classList.contains("results--hidden")) {
-        render(readForm());
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Ошибка загрузки";
-      alert(msg);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = prev;
-    }
-  });
-}
-
-function fillExample() {
-  document.getElementById("auction-yen").value = "1802000";
-  document.getElementById("vehicle-age").value = "3to5";
-  document.getElementById("engine-type").value = "gasoline";
-  document.getElementById("engine-cc").value = "1986";
-  document.getElementById("engine-hp").value = "150";
-  document.getElementById("engine-cc").setCustomValidity("");
-  document.getElementById("engine-hp").setCustomValidity("");
-
-  document.getElementById("yen-per-usd").value = "161.4";
-  setKhanYenNote(null);
-  document.getElementById("rub-per-usd").value = "80.99";
-  document.getElementById("rub-per-yen").value = "0.5299";
-  document.getElementById("rub-per-eur").value = "91.0034";
-  setCbrEurDateLine(null);
-  setSelectedAuction("Aucnet", 110000);
-  document.getElementById("vanning-yen").value = "40000";
-  document.getElementById("usd-train").value = "2040";
-  document.getElementById("usd-track").value = "2340";
-  document.getElementById("rub-in-invoice").value = "47800";
-  document.getElementById("lab-rub").value = "40000";
-}
-
 function wireFormListeners() {
   const form = document.getElementById("calc-form");
   if (form) {
@@ -830,28 +794,17 @@ function wireFormListeners() {
     form.addEventListener("input", updateProgressiveSteps);
     form.addEventListener("change", updateProgressiveSteps);
   }
-  const fillBtn = document.getElementById("btn-fill-example");
-  if (fillBtn) {
-    fillBtn.addEventListener("click", () => {
-      fillExample();
-      updateProgressiveSteps();
-      render(readForm());
-      const results = document.getElementById("results");
-      if (results) results.classList.remove("results--hidden");
-    });
-  }
 }
 
 (function bootCalculator() {
   try {
     initTheme();
     initAuctionPicker();
-    initKhanYenButton();
-    initCbrEurButton();
-    initAtbUsdButton();
+    initRatesAuto();
     renderAuctionOptions();
     updateProgressiveSteps();
     wireFormListeners();
+    updateRatesUIFromInputs();
   } catch (err) {
     console.error(err);
     const msg =

@@ -73,7 +73,7 @@ function curl_request(string $method, string $url, array $headers, ?string $body
         $err = curl_error($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         // Начиная с PHP 8.0 curl_close() фактически no-op, а с 8.5 помечен deprecated,
-        // поэтому вызывать его не нужно, чтобы не получать предупреждения в вывод.
+        // поэтому не вызываем его, чтобы не получать предупреждения в вывод.
         return [$respBody, $errno, $err, $status, $insecureSsl];
     };
 

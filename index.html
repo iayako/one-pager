@@ -16,11 +16,8 @@
         <h1>Расчет стоимости авто</h1>
       </div>
       <div class="header__actions">
-        <button type="button" class="btn btn--ghost" id="theme-toggle" aria-label="Переключить тему">
-          Светлая тема
-        </button>
-        <button type="button" class="btn btn--ghost" id="btn-fill-example" title="Подставить цифры из примера в ТЗ">
-          Заполнить пример из ТЗ
+        <button type="button" class="btn btn--ghost btn--icon" id="theme-toggle" aria-label="Переключить тему" title="Переключить тему">
+          <span class="sr-only">Переключить тему</span>
         </button>
       </div>
     </header>
@@ -33,50 +30,37 @@
         <input type="hidden" name="usdTrack" id="usd-track" value="2340" />
         <input type="hidden" name="rubInInvoice" id="rub-in-invoice" value="47800" />
         <input type="hidden" name="labRub" id="lab-rub" value="40000" />
+        <input type="hidden" name="yenPerUsd" id="yen-per-usd" value="161.4" />
+        <input type="hidden" name="rubPerUsd" id="rub-per-usd" value="80.99" />
+        <input type="hidden" name="rubPerYen" id="rub-per-yen" value="0.5299" />
+        <input type="hidden" name="rubPerEur" id="rub-per-eur" value="91.0034" />
       </div>
 
-      <section class="panel panel--compact panel--tight rates-panel">
+      <section class="panel panel--tight rates-panel">
         <h2 class="panel__title">Курсы валют</h2>
-        <div class="grid grid--rates">
-          <label class="field">
-            <span class="field__label">¥ за 1 $ <span class="hint">(Khan Bank: бэлэн бус зарах USD ÷ бэлэн бус авах JPY)</span></span>
-            <div class="auction-picker__row">
-              <input type="number" name="yenPerUsd" id="yen-per-usd" step="0.01" min="0" value="161.4" required placeholder="Например, 161.4" />
-              <button type="button" class="btn btn--ghost btn--pick" id="btn-khan-yen" title="Подставить ¥/$ по курсам Khan Bank (api/back/rates)">
-                Khan
-              </button>
-            </div>
-            <p class="field__note" id="khan-yen-note" aria-live="polite">Khan Bank: —</p>
-          </label>
-          <label class="field">
-            <span class="field__label">₽ за 1 $ <span class="hint">АТБ</span></span>
-            <div class="auction-picker__row">
-              <input type="number" name="rubPerUsd" id="rub-per-usd" step="0.01" min="0" value="80.99" required placeholder="Например, 80.99" />
-              <button
-                type="button"
-                class="btn btn--ghost btn--pick"
-                id="btn-atb-usd"
-                title="Подставить ₽/$ по курсу АТБ для Улан-Удэ"
-              >
-                АТБ
-              </button>
-            </div>
-          </label>
-          <label class="field">
-            <span class="field__label">₽ за 1 ¥ <span class="hint">АТБ, денежные переводы</span></span>
-            <input type="number" name="rubPerYen" id="rub-per-yen" step="0.0001" min="0" value="0.5299" required placeholder="Например, 0.5299" />
-          </label>
-          <label class="field">
-            <span class="field__label">₽ за 1 € <span class="hint">ЦБ · для пошлины</span></span>
-            <div class="auction-picker__row">
-              <input type="number" name="rubPerEur" id="rub-per-eur" step="0.0001" min="0" value="91.0034" required placeholder="Например, 91.0034" />
-              <button type="button" class="btn btn--ghost btn--pick" id="btn-cbr-eur" title="Подставить официальный курс € ЦБ (как на сайте ЦБ)">
-                ЦБ
-              </button>
-            </div>
-            <p class="field__note" id="cbr-eur-date" aria-live="polite">Официальный курс ЦБ на дату: —</p>
-          </label>
+        <div class="rates-strip" role="list" aria-label="Курсы валют (используются в расчёте)">
+          <div class="rate" role="listitem">
+            <span class="rate__icon rate__icon--usd" aria-hidden="true">USD</span>
+            <span class="rate__label">₽ / $</span>
+            <span class="rate__value" id="rate-rub-per-usd">—</span>
+          </div>
+          <div class="rate" role="listitem">
+            <span class="rate__icon rate__icon--jpy" aria-hidden="true">JPY</span>
+            <span class="rate__label">¥ / $</span>
+            <span class="rate__value" id="rate-yen-per-usd">—</span>
+          </div>
+          <div class="rate" role="listitem">
+            <span class="rate__icon rate__icon--jpy" aria-hidden="true">JPY</span>
+            <span class="rate__label">₽ / ¥</span>
+            <span class="rate__value" id="rate-rub-per-yen">—</span>
+          </div>
+          <div class="rate" role="listitem">
+            <span class="rate__icon rate__icon--eur" aria-hidden="true">EUR</span>
+            <span class="rate__label">₽ / €</span>
+            <span class="rate__value" id="rate-rub-per-eur">—</span>
+          </div>
         </div>
+        <p class="panel__note rates-updated" id="rates-updated" aria-live="polite">Последнее обновление: —</p>
       </section>
 
       <section class="panel wizard" id="vehicle-wizard" aria-label="Данные об автомобиле">
@@ -245,13 +229,10 @@
           </dl>
         </article>
       </div>
-      <p class="results__footnote">
-        Комиссия банка АТБ: 1,5% от суммы в ₽ по курсу ¥, но не менее 10&nbsp;000&nbsp;₽. Итог «всего» = оплата по инвойсу + таможня (сбор + пошлина + утилизация) + лаборатория. Таможенная сумма считается от инвойса ¥ и характеристик авто; для Train и Track она может немного отличаться из‑за разной суммы инвойса.
-      </p>
     </section>
 
     <footer class="footer">
-      <p>Расчёт носит ориентировочный характер. Уточняйте курсы и состав платежей в банке и у таможенного представителя.</p>
+      <p></p>
     </footer>
   </div>
 
