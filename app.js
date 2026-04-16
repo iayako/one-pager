@@ -538,7 +538,7 @@ function deriveRubPerYenIfPossible() {
 
 async function initRatesAuto() {
   const now = new Date();
-  setRatesUpdatedLine("Последнее обновление: загрузка…");
+  setRatesUpdatedLine("Обновление курсов\nВремя: загрузка…\nИсточники: —");
 
   const inputYenPerUsd = document.getElementById("yen-per-usd");
   const inputRubPerUsd = document.getElementById("rub-per-usd");
@@ -590,10 +590,13 @@ async function initRatesAuto() {
   updateRatesUIFromInputs();
   updateProgressiveSteps();
 
-  const base = `Последнее обновление: ${formatLocalDateTime(now)}`;
-  const tail = okSources.length ? ` · источники: ${okSources.join(", ")}` : " · источники: —";
-  const dates = sourceDates.length ? ` · даты: ${sourceDates.join(", ")}` : "";
-  setRatesUpdatedLine(base + tail + dates);
+  const lines = [
+    "Обновление курсов",
+    `Время: ${formatLocalDateTime(now) || "—"}`,
+    `Источники: ${okSources.length ? okSources.join(", ") : "—"}`,
+    `Даты курсов: ${sourceDates.length ? sourceDates.join(", ") : "—"}`,
+  ];
+  setRatesUpdatedLine(lines.join("\n"));
 }
 
 function computeCalculation(data) {
