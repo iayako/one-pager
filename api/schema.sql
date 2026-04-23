@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS calculation_log (
   INDEX idx_calculation_log_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Заявки от пользователей после расчёта.
+-- Заявки от пользователей после расчёта (контакт + параметры расчёта из формы).
 CREATE TABLE IF NOT EXISTS lead_request (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -23,6 +23,12 @@ CREATE TABLE IF NOT EXISTS lead_request (
   calculation_snapshot_json JSON NULL,
   client_ip VARCHAR(45) NULL,
   user_agent VARCHAR(512) NULL,
+  auction_price_yen DECIMAL(15,2) NULL COMMENT 'Цена авто на аукционе, ¥',
+  vehicle_age VARCHAR(32) NULL COMMENT 'under3 | 3to5 | over5',
+  engine_type VARCHAR(32) NULL COMMENT 'gasoline | hybrid',
+  auction_name VARCHAR(160) NULL,
+  engine_cc DECIMAL(12,2) NULL COMMENT 'Объём см³',
+  engine_hp DECIMAL(12,2) NULL COMMENT 'Мощность л.с.',
   INDEX idx_lead_request_created (created_at),
   INDEX idx_lead_request_calc_id (calculation_log_id),
   CONSTRAINT fk_lead_request_calc_log

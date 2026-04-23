@@ -9,6 +9,68 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+/**
+ * Достаём из снимка расчёта поля авто для отдельных колонок в БД (удобный отчёт и бот).
+ *
+ * @param array<string,mixed>|null $calcSnapshot Объект { inputs, outputs } с фронта
+ * @return array{auction_price_yen: ?float, vehicle_age: ?string, engine_type: ?string, auction_name: ?string, engine_cc: ?float, engine_hp: ?float}
+ */
+function extractLeadVehicleFieldsFromSnapshot(?array $calcSnapshot): array
+{
+    $out = [
+        'auction_price_yen' => null,
+        'vehicle_age' => null,
+        'engine_type' => null,
+        'auction_name' => null,
+        'engine_cc' => null,
+        'engine_hp' => null,
+    ];
+
+    if (!is_array($calcSnapshot)) {
+        return $out;
+    }
+
+    $inputs = $calcSnapshot['inputs'] ?? null;
+    if (!is_array($inputs)) {
+        return $out;
+    }
+
+    $priceRaw = $inputs['auctionYen'] ?? null;
+    if (is_numeric($priceRaw)) {
+        $p = (float) $priceRaw;
+        if (is_finite($p)) {
+            $out['auction_price_yen'] = round($p, 2);
+        }
+    }
+
+    $va = isset($inputs['vehicleAge']) ? trim((string) $inputs['vehicleAge']) : '';
+    if ($va !== '') {
+        $out['vehicle_age'] = mb_substr($va, 0, 32);
+    }
+
+    $et = isset($inputs['engineType']) ? trim((string) $inputs['engineType']) : '';
+    if ($et !== '') {
+        $out['engine_type'] = mb_substr($et, 0, 32);
+    }
+
+    $an = isset($inputs['auctionName']) ? trim((string) $inputs['auctionName']) : '';
+    if ($an !== '') {
+        $out['auction_name'] = mb_substr($an, 0, 160);
+    }
+
+    foreach (['engineDisplacementCc' => 'engine_cc', 'enginePowerHp' => 'engine_hp'] as $src => $key) {
+        $v = $inputs[$src] ?? null;
+        if (is_numeric($v)) {
+            $n = (float) $v;
+            if (is_finite($n)) {
+                $out[$key] = round($n, 2);
+            }
+        }
+    }
+
+    return $out;
+}
+
 $configPath = __DIR__ . '/config.php';
 if (!file_exists($configPath)) {
     http_response_code(500);
@@ -101,6 +163,8 @@ if (is_array($calcSnapshot)) {
     }
 }
 
+$vehicle = extractLeadVehicleFieldsFromSnapshot(is_array($calcSnapshot) ? $calcSnapshot : null);
+
 $dsn = sprintf(
     'mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
     $config['host'],
@@ -128,8 +192,9 @@ try {
 
     $stmt = $pdo->prepare(
         'INSERT INTO lead_request
-        (name, phone, contact_method, comment, calculation_log_id, calculation_snapshot_json, client_ip, user_agent)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        (name, phone, contact_method, comment, calculation_log_id, calculation_snapshot_json, client_ip, user_agent,
+         auction_price_yen, vehicle_age, engine_type, auction_name, engine_cc, engine_hp)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     $stmt->execute([
         $name !== '' ? $name : null,
@@ -140,6 +205,12 @@ try {
         $calcSnapshotJson,
         $ip,
         $ua,
+        $vehicle['auction_price_yen'],
+        $vehicle['vehicle_age'],
+        $vehicle['engine_type'],
+        $vehicle['auction_name'],
+        $vehicle['engine_cc'],
+        $vehicle['engine_hp'],
     ]);
 
     echo json_encode([

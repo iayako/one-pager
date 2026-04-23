@@ -2,15 +2,19 @@
 declare(strict_types=1);
 
 /**
- * Простой Telegram-бот для чтения расчётов из таблицы calculation_log.
+ * Telegram-бот: заявки с сайта (lead_request) и отладочный просмотр расчётов (calculation_log).
  *
  * Команды:
- *  - /last         — показать последний расчёт
- *  - /id <ID>      — показать расчёт по конкретному ID (например, /id 123)
+ *   /start, /help — справка
+ *   /leads — список заявок (кнопки и листание)
+ *   /lead &lt;id&gt; — карточка заявки
+ *   /last — последний расчёт (calculation_log)
+ *   /id &lt;n&gt; — расчёт по ID (calculation_log)
  *
- * Запуск (из корня проекта):
- *   php api/telegram_bot.php
+ * Запуск: php api/telegram_bot.php
  */
+
+const LEADS_PAGE_SIZE = 5;
 
 if (PHP_SAPI !== 'cli') {
     fwrite(STDERR, "Этот скрипт нужно запускать из консоли: php api/telegram_bot.php\n");
@@ -80,21 +84,80 @@ if (!function_exists('str_starts_with')) {
     }
 }
 
-/**
- * Убираем токен из текста ошибок (systemd journal, логи).
- */
 function redactTelegramToken(string $message, string $botToken): string
 {
     return $botToken !== '' ? str_replace($botToken, '[token]', $message) : $message;
 }
 
+function tgEsc(?string $s): string
+{
+    $s = (string) $s;
+
+    return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+}
+
+function vehicleAgeRu(?string $code): string
+{
+    return match ($code) {
+        'under3' => 'Младше 3 лет',
+        '3to5' => 'От 3 до 5 лет',
+        'over5' => 'Старше 5 лет',
+        default => $code !== null && $code !== '' ? tgEsc($code) : '—',
+    };
+}
+
+function engineTypeRu(?string $code): string
+{
+    return match ($code) {
+        'gasoline' => 'ДВС бензиновый',
+        'hybrid' => 'Гибрид',
+        default => $code !== null && $code !== '' ? tgEsc($code) : '—',
+    };
+}
+
+function contactMethodRu(string $m): string
+{
+    return match ($m) {
+        'telegram' => 'Telegram',
+        'whatsapp' => 'WhatsApp',
+        default => 'Звонок',
+    };
+}
+
+/** @param float|int|string|null $n */
+function formatMoneyYen($n): string
+{
+    if ($n === null || $n === '') {
+        return '—';
+    }
+    $v = is_numeric($n) ? (float) $n : null;
+    if ($v === null || !is_finite($v)) {
+        return '—';
+    }
+
+    return number_format($v, 0, '.', ' ') . ' ¥';
+}
+
+/** @param float|int|string|null $n */
+function formatNumRu($n, string $suffix = ''): string
+{
+    if ($n === null || $n === '') {
+        return '—';
+    }
+    if (!is_numeric($n)) {
+        return '—';
+    }
+    $v = (float) $n;
+    if (!is_finite($v)) {
+        return '—';
+    }
+    $dec = fmod($v, 1.0) === 0.0 ? 0 : 2;
+
+    return number_format($v, $dec, ',', ' ') . ($suffix !== '' ? ' ' . $suffix : '');
+}
+
 /**
- * Вызов Telegram Bot API.
- *
- * Предпочтительно cURL + только IPv4: на части VPS IPv6 до api.telegram.org недоступен,
- * и file_get_contents зависает с Connection timed out.
- *
- * Нужно расширение php-curl: sudo apt install php-curl (версию подставить под свой PHP CLI).
+ * GET (для getUpdates).
  *
  * @return array<string,mixed>
  */
@@ -156,23 +219,136 @@ function telegramApiRequest(string $botToken, string $method, array $params = []
     return $decoded;
 }
 
-function sendMessage(string $botToken, int $chatId, string $text): void
+/**
+ * POST application/x-www-form-urlencoded (sendMessage, editMessageText, …).
+ *
+ * @return array<string,mixed>
+ */
+function telegramApiPost(string $botToken, string $method, array $params): array
 {
-    // Telegram режет сообщения длиннее 4096 символов.
+    $url = 'https://api.telegram.org/bot' . $botToken . '/' . $method;
+
+    $flat = [];
+    foreach ($params as $k => $v) {
+        $flat[$k] = is_array($v) ? json_encode($v, JSON_UNESCAPED_UNICODE) : (string) $v;
+    }
+
+    if (!function_exists('curl_init')) {
+        return ['ok' => false, 'description' => 'Нужно расширение php-curl'];
+    }
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $flat,
+        CURLOPT_CONNECTTIMEOUT => 20,
+        CURLOPT_TIMEOUT => 60,
+        CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+    ]);
+
+    $raw = curl_exec($ch);
+    $curlErr = curl_error($ch);
+    curl_close($ch);
+
+    if ($raw === false || $raw === '') {
+        return ['ok' => false, 'description' => $curlErr !== '' ? $curlErr : 'curl POST failed'];
+    }
+
+    $decoded = json_decode((string) $raw, true);
+
+    return is_array($decoded) ? $decoded : ['ok' => false, 'description' => 'Некорректный JSON'];
+}
+
+function truncatePlain(string $text, int $maxLen): string
+{
+    if (mb_strlen($text, 'UTF-8') <= $maxLen) {
+        return $text;
+    }
+
+    return mb_substr($text, 0, $maxLen - 1, 'UTF-8') . '…';
+}
+
+function sendPlain(string $botToken, int $chatId, string $text): void
+{
     if (mb_strlen($text, 'UTF-8') > 4000) {
         $text = mb_substr($text, 0, 4000, 'UTF-8') . "\n\n(сообщение обрезано)";
     }
 
-    telegramApiRequest($botToken, 'sendMessage', [
-        'chat_id' => $chatId,
+    telegramApiPost($botToken, 'sendMessage', [
+        'chat_id' => (string) $chatId,
         'text' => $text,
-        'parse_mode' => 'Markdown',
     ]);
 }
 
 /**
- * Аккуратное короткое представление JSON-объекта (только верхний уровень).
- *
+ * @param array<int,array<int,array{text:string,callback_data:string}>> $inlineKeyboard
+ */
+function sendHtml(
+    string $botToken,
+    int $chatId,
+    string $html,
+    ?array $inlineKeyboard = null
+): void {
+    if (mb_strlen($html, 'UTF-8') > 4000) {
+        $html = mb_substr($html, 0, 4000, 'UTF-8') . "\n\n<i>(обрезано)</i>";
+    }
+
+    $params = [
+        'chat_id' => (string) $chatId,
+        'text' => $html,
+        'parse_mode' => 'HTML',
+        'disable_web_page_preview' => '1',
+    ];
+
+    if ($inlineKeyboard !== null) {
+        $params['reply_markup'] = json_encode(['inline_keyboard' => $inlineKeyboard], JSON_UNESCAPED_UNICODE);
+    }
+
+    telegramApiPost($botToken, 'sendMessage', $params);
+}
+
+/**
+ * @param array<int,array<int,array{text:string,callback_data:string}>>|null $inlineKeyboard
+ */
+function editHtmlMessage(
+    string $botToken,
+    int $chatId,
+    int $messageId,
+    string $html,
+    ?array $inlineKeyboard = null
+): void {
+    if (mb_strlen($html, 'UTF-8') > 4000) {
+        $html = mb_substr($html, 0, 4000, 'UTF-8') . "\n\n<i>(обрезано)</i>";
+    }
+
+    $params = [
+        'chat_id' => (string) $chatId,
+        'message_id' => (string) $messageId,
+        'text' => $html,
+        'parse_mode' => 'HTML',
+        'disable_web_page_preview' => '1',
+    ];
+
+    if ($inlineKeyboard !== null) {
+        $params['reply_markup'] = json_encode(['inline_keyboard' => $inlineKeyboard], JSON_UNESCAPED_UNICODE);
+    }
+
+    telegramApiPost($botToken, 'editMessageText', $params);
+}
+
+function answerCallbackQuery(string $botToken, string $callbackQueryId, ?string $text = null): void
+{
+    $p = ['callback_query_id' => $callbackQueryId];
+    if ($text !== null && $text !== '') {
+        $p['text'] = truncatePlain($text, 200);
+        $p['show_alert'] = '0';
+    }
+
+    telegramApiPost($botToken, 'answerCallbackQuery', $p);
+}
+
+/**
  * @param array<string,mixed> $data
  */
 function formatShortJson(array $data, int $maxLen = 600): string
@@ -203,9 +379,6 @@ function formatShortJson(array $data, int $maxLen = 600): string
     return implode("\n", $parts);
 }
 
-/**
- * Переподключение к БД при обрыве соединения.
- */
 function reconnectPdo(PDO &$pdo): void
 {
     global $dsn, $dbConfig;
@@ -217,8 +390,135 @@ function reconnectPdo(PDO &$pdo): void
 }
 
 /**
- * Обработать команду /last.
+ * @return array{text: string, keyboard: array<int, array<int, array{text: string, callback_data: string}>>|null}
  */
+function buildLeadsView(PDO &$pdo, int $offset): array
+{
+    $total = (int) $pdo->query('SELECT COUNT(*) AS c FROM lead_request')->fetch()['c'];
+
+    if ($total === 0) {
+        return [
+            'text' => "<b>Заявки с сайта</b>\n\nПока нет ни одной записи.",
+            'keyboard' => null,
+        ];
+    }
+
+    $stmt = $pdo->prepare(
+        'SELECT id, created_at, name, phone, auction_price_yen, auction_name, vehicle_age
+         FROM lead_request
+         ORDER BY id DESC
+         LIMIT :lim OFFSET :off'
+    );
+    $stmt->bindValue(':lim', LEADS_PAGE_SIZE, PDO::PARAM_INT);
+    $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    /** @var array<int,array<string,mixed>> $rows */
+    $rows = $stmt->fetchAll();
+
+    $pages = max(1, (int) ceil($total / LEADS_PAGE_SIZE));
+    $pageNum = (int) floor($offset / LEADS_PAGE_SIZE) + 1;
+
+    $lines = [];
+    $lines[] = '<b>Заявки с сайта</b>';
+    $lines[] = 'Страница ' . $pageNum . ' из ' . $pages . ' · всего ' . $total;
+    $lines[] = '';
+
+    $keyboard = [];
+
+    foreach ($rows as $row) {
+        $id = (int) $row['id'];
+        $when = tgEsc((string) ($row['created_at'] ?? ''));
+        $name = trim((string) ($row['name'] ?? ''));
+        $nameDisp = $name !== '' ? tgEsc($name) : 'без имени';
+        $phone = tgEsc((string) ($row['phone'] ?? ''));
+        $price = formatMoneyYen($row['auction_price_yen'] ?? null);
+        $auction = trim((string) ($row['auction_name'] ?? ''));
+        $auctionDisp = $auction !== '' ? tgEsc(truncatePlain($auction, 40)) : '—';
+        $ageShort = vehicleAgeRu(isset($row['vehicle_age']) ? (string) $row['vehicle_age'] : null);
+
+        $lines[] = '────────────';
+        $lines[] = "<b>№{$id}</b> · {$when}";
+        $lines[] = "👤 {$nameDisp} · 📞 {$phone}";
+        $lines[] = '🚗 ' . $price . ' · ' . $auctionDisp;
+        $lines[] = '📅 ' . $ageShort;
+        $lines[] = '';
+
+        $btnLabel = 'Открыть №' . $id;
+        $keyboard[] = [['text' => truncatePlain($btnLabel, 64), 'callback_data' => 'ld_' . $id]];
+    }
+
+    $navRow = [];
+    if ($offset > 0) {
+        $prev = max(0, $offset - LEADS_PAGE_SIZE);
+        $navRow[] = ['text' => '◀ Назад', 'callback_data' => 'pg_' . $prev];
+    }
+    if ($offset + LEADS_PAGE_SIZE < $total) {
+        $next = $offset + LEADS_PAGE_SIZE;
+        $navRow[] = ['text' => 'Вперёд ▶', 'callback_data' => 'pg_' . $next];
+    }
+    if ($navRow !== []) {
+        $keyboard[] = $navRow;
+    }
+
+    return [
+        'text' => implode("\n", $lines),
+        'keyboard' => $keyboard !== [] ? $keyboard : null,
+    ];
+}
+
+/**
+ * @param array<string,mixed>|false $row
+ */
+function buildLeadDetailHtml($row): string
+{
+    if ($row === false || !is_array($row)) {
+        return 'Заявка не найдена.';
+    }
+
+    $id = (int) $row['id'];
+    $when = tgEsc((string) ($row['created_at'] ?? ''));
+    $name = trim((string) ($row['name'] ?? ''));
+    $phone = tgEsc((string) ($row['phone'] ?? ''));
+    $cm = contactMethodRu((string) ($row['contact_method'] ?? 'phone'));
+    $comment = trim((string) ($row['comment'] ?? ''));
+
+    $price = formatMoneyYen($row['auction_price_yen'] ?? null);
+    $vAge = vehicleAgeRu(isset($row['vehicle_age']) ? (string) $row['vehicle_age'] : null);
+    $eType = engineTypeRu(isset($row['engine_type']) ? (string) $row['engine_type'] : null);
+    $auction = trim((string) ($row['auction_name'] ?? ''));
+    $auctionLine = $auction !== '' ? tgEsc($auction) : '—';
+    $cc = formatNumRu($row['engine_cc'] ?? null, 'см³');
+    $hp = formatNumRu($row['engine_hp'] ?? null, 'л.с.');
+
+    $lines = [];
+    $lines[] = "<b>Заявка №{$id}</b>";
+    $lines[] = '📆 ' . $when;
+    $lines[] = '';
+    $lines[] = '<b>Контакт</b>';
+    $lines[] = 'Имя: ' . ($name !== '' ? tgEsc($name) : '—');
+    $lines[] = 'Телефон: ' . $phone;
+    $lines[] = 'Связь: ' . tgEsc($cm);
+    if ($comment !== '') {
+        $lines[] = 'Комментарий: ' . tgEsc($comment);
+    }
+    $lines[] = '';
+    $lines[] = '<b>Параметры расчёта</b>';
+    $lines[] = 'Цена авто: ' . $price;
+    $lines[] = 'Возраст: ' . $vAge;
+    $lines[] = 'Тип двигателя: ' . $eType;
+    $lines[] = 'Аукцион: ' . $auctionLine;
+    $lines[] = 'Объём: ' . $cc;
+    $lines[] = 'Мощность: ' . $hp;
+
+    $calcLogId = $row['calculation_log_id'] ?? null;
+    if ($calcLogId !== null && (int) $calcLogId > 0) {
+        $lines[] = '';
+        $lines[] = '🔗 Расчёт в логе: ID ' . (int) $calcLogId;
+    }
+
+    return implode("\n", $lines);
+}
+
 function handleLastCommand(PDO &$pdo): ?string
 {
     $attempts = 0;
@@ -243,10 +543,10 @@ function handleLastCommand(PDO &$pdo): ?string
             $outputsText = is_array($outputs) ? formatShortJson($outputs) : '[не удалось разобрать JSON]';
 
             $text = "Последний расчёт #" . (int) $row['id'] . "\n";
-            $text .= "Создан: " . (string) $row['created_at'] . "\n\n";
-            $text .= "*Входные данные:*\n";
+            $text .= 'Создан: ' . (string) $row['created_at'] . "\n\n";
+            $text .= "Входные данные:\n";
             $text .= $inputsText . "\n\n";
-            $text .= "*Результаты:*\n";
+            $text .= "Результаты:\n";
             $text .= $outputsText;
 
             return $text;
@@ -268,9 +568,6 @@ function handleLastCommand(PDO &$pdo): ?string
     }
 }
 
-/**
- * Обработать команду /id <N>.
- */
 function handleIdCommand(PDO &$pdo, int $id): ?string
 {
     $attempts = 0;
@@ -296,10 +593,10 @@ function handleIdCommand(PDO &$pdo, int $id): ?string
             $outputsText = is_array($outputs) ? formatShortJson($outputs) : '[не удалось разобрать JSON]';
 
             $text = "Расчёт #" . (int) $row['id'] . "\n";
-            $text .= "Создан: " . (string) $row['created_at'] . "\n\n";
-            $text .= "*Входные данные:*\n";
+            $text .= 'Создан: ' . (string) $row['created_at'] . "\n\n";
+            $text .= "Входные данные:\n";
             $text .= $inputsText . "\n\n";
-            $text .= "*Результаты:*\n";
+            $text .= "Результаты:\n";
             $text .= $outputsText;
 
             return $text;
@@ -321,6 +618,19 @@ function handleIdCommand(PDO &$pdo, int $id): ?string
     }
 }
 
+function helpText(): string
+{
+    return <<<TXT
+Команды:
+/leads — заявки с сайта (список и кнопки)
+/lead N — полная карточка заявки № N
+/last — последний технический расчёт (calculation_log)
+/id N — расчёт по ID (calculation_log)
+
+Подсказка: откройте /leads и нажимайте «Открыть» под заявкой.
+TXT;
+}
+
 // ---- Основной цикл long polling ----
 
 fwrite(STDOUT, "Telegram-бот запущен. Нажмите Ctrl+C для остановки.\n");
@@ -331,7 +641,7 @@ while (true) {
     $response = telegramApiRequest($botToken, 'getUpdates', [
         'timeout' => 25,
         'offset' => $offset,
-        'allowed_updates' => json_encode(['message']),
+        'allowed_updates' => json_encode(['message', 'callback_query']),
     ]);
 
     if (!($response['ok'] ?? false)) {
@@ -349,7 +659,6 @@ while (true) {
     $updates = $response['result'] ?? [];
 
     if (!$updates) {
-        // Нет новых сообщений.
         continue;
     }
 
@@ -359,6 +668,60 @@ while (true) {
             $offset = $updateId + 1;
         }
 
+        // --- callback_query (inline-кнопки) ---
+        $cb = $update['callback_query'] ?? null;
+        if (is_array($cb)) {
+            $cbId = isset($cb['id']) && is_string($cb['id']) ? $cb['id'] : '';
+            $cbFrom = $cb['from'] ?? null;
+            $cbMsg = $cb['message'] ?? null;
+            $data = isset($cb['data']) && is_string($cb['data']) ? $cb['data'] : '';
+
+            if ($cbId === '' || !is_array($cbFrom) || !is_array($cbMsg)) {
+                continue;
+            }
+
+            $cqChatId = isset($cbMsg['chat']['id']) ? (int) $cbMsg['chat']['id'] : 0;
+            $cqMessageId = isset($cbMsg['message_id']) ? (int) $cbMsg['message_id'] : 0;
+            if ($allowedChatIds !== [] && !isset($allowedChatIds[$cqChatId])) {
+                answerCallbackQuery($botToken, $cbId, 'Нет доступа.');
+                continue;
+            }
+
+            answerCallbackQuery($botToken, $cbId);
+
+            if (preg_match('/^pg_(\d+)$/', $data, $m) && $cqChatId > 0 && $cqMessageId > 0) {
+                $off = (int) $m[1];
+                try {
+                    $view = buildLeadsView($pdo, $off);
+                    editHtmlMessage($botToken, $cqChatId, $cqMessageId, $view['text'], $view['keyboard']);
+                } catch (Throwable $e) {
+                    sendPlain($botToken, $cqChatId, 'Ошибка БД: ' . $e->getMessage());
+                }
+                continue;
+            }
+
+            if (preg_match('/^ld_(\d+)$/', $data, $m)) {
+                $leadId = (int) $m[1];
+                try {
+                    $stmt = $pdo->prepare(
+                        'SELECT id, created_at, name, phone, contact_method, comment, calculation_log_id,
+                         auction_price_yen, vehicle_age, engine_type, auction_name, engine_cc, engine_hp
+                         FROM lead_request WHERE id = :id LIMIT 1'
+                    );
+                    $stmt->execute([':id' => $leadId]);
+                    $row = $stmt->fetch();
+                    $html = buildLeadDetailHtml($row);
+                    sendHtml($botToken, $cqChatId, $html);
+                } catch (Throwable $e) {
+                    sendPlain($botToken, $cqChatId, 'Ошибка БД: ' . $e->getMessage());
+                }
+                continue;
+            }
+
+            continue;
+        }
+
+        // --- message ---
         $message = $update['message'] ?? null;
         if (!is_array($message)) {
             continue;
@@ -377,33 +740,79 @@ while (true) {
         fwrite(STDOUT, "Сообщение из чата {$chatId}: {$text}\n");
 
         if ($allowedChatIds !== [] && !isset($allowedChatIds[$chatId])) {
-            sendMessage($botToken, $chatId, 'Доступ к этому боту ограничен для данного чата.');
+            sendPlain($botToken, $chatId, 'Доступ к этому боту ограничен для данного чата.');
             continue;
         }
 
         if ($text === '') {
-            sendMessage($botToken, $chatId, "Я понимаю только текстовые команды.\n\nКоманды:\n/last — последний расчёт\n/id <ID> — расчёт по ID");
+            sendPlain($botToken, $chatId, helpText());
+            continue;
+        }
+
+        $cmd = strtolower(explode(' ', $text, 2)[0]);
+
+        if ($cmd === '/start' || $cmd === '/help') {
+            sendPlain($botToken, $chatId, helpText());
+            continue;
+        }
+
+        if ($cmd === '/leads' || str_starts_with($text, '/leads')) {
+            try {
+                $view = buildLeadsView($pdo, 0);
+                sendHtml($botToken, $chatId, $view['text'], $view['keyboard']);
+            } catch (Throwable $e) {
+                $msg = $e->getMessage();
+                if (str_contains($msg, 'Unknown column') || str_contains($msg, "doesn't exist")) {
+                    sendPlain(
+                        $botToken,
+                        $chatId,
+                        'В БД нет новых колонок для заявок. Выполните на сервере: mysql ... < api/migration_lead_client_fields.sql'
+                    );
+                } else {
+                    sendPlain($botToken, $chatId, 'Ошибка: ' . $msg);
+                }
+            }
+            continue;
+        }
+
+        if (preg_match('~^/lead\s+(\d+)\s*$~u', $text, $m)) {
+            $leadId = (int) $m[1];
+            try {
+                $stmt = $pdo->prepare(
+                    'SELECT id, created_at, name, phone, contact_method, comment, calculation_log_id,
+                     auction_price_yen, vehicle_age, engine_type, auction_name, engine_cc, engine_hp
+                     FROM lead_request WHERE id = :id LIMIT 1'
+                );
+                $stmt->execute([':id' => $leadId]);
+                $row = $stmt->fetch();
+                sendHtml($botToken, $chatId, buildLeadDetailHtml($row));
+            } catch (Throwable $e) {
+                sendPlain($botToken, $chatId, 'Ошибка: ' . $e->getMessage());
+            }
             continue;
         }
 
         if (str_starts_with($text, '/last')) {
-            $reply = handleLastCommand($pdo);
-            sendMessage($botToken, $chatId, $reply ?? 'Не удалось получить последний расчёт.');
+            try {
+                $reply = handleLastCommand($pdo);
+                sendPlain($botToken, $chatId, $reply ?? 'Не удалось получить последний расчёт.');
+            } catch (Throwable $e) {
+                sendPlain($botToken, $chatId, 'Ошибка: ' . $e->getMessage());
+            }
             continue;
         }
 
         if (preg_match('~^/id\s+(\d+)~u', $text, $m)) {
             $id = (int) $m[1];
-            $reply = handleIdCommand($pdo, $id);
-            sendMessage($botToken, $chatId, $reply ?? 'Не удалось получить данные по указанному ID.');
+            try {
+                $reply = handleIdCommand($pdo, $id);
+                sendPlain($botToken, $chatId, $reply ?? 'Не удалось получить данные по указанному ID.');
+            } catch (Throwable $e) {
+                sendPlain($botToken, $chatId, 'Ошибка: ' . $e->getMessage());
+            }
             continue;
         }
 
-        sendMessage(
-            $botToken,
-            $chatId,
-            "Неизвестная команда.\n\nДоступные команды:\n/last — показать последний расчёт\n/id <ID> — показать расчёт по ID"
-        );
+        sendPlain($botToken, $chatId, "Неизвестная команда.\n\n" . helpText());
     }
 }
-
