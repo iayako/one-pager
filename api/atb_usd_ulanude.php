@@ -2,14 +2,15 @@
 declare(strict_types=1);
 
 /**
- * АТБ (atb.su) — курс USD→RUB для города «Улан-Удэ».
+ * АТБ (atb.su) — курсы для города «Улан-Удэ».
  *
- * Как на странице https://www.atb.su/services/exchange/:
- * - выбираем город (через Bitrix ajax action setCity)
- * - выбираем валюту USD (для конвертера это означает взять коэффициенты usd1/rub1)
- * - возвращаем значение, которое окажется в input[data-exchange-to-price] при from_price=1
+ * Основной источник:
+ * блок "Курсы валют" -> вкладка "для денежных переводов" (currencyTab4):
+ * - USD "покупка" -> ₽ за 1 $
+ * - JPY "покупка" (обычно "за 100¥") -> ₽ за 1 ¥
+ * - строка "Актуально на ..."
  *
- * Ответ: { ok, cityId, cityName, from_price, to_price, rubPerUsd, meta }
+ * Ответ: { ok, cityId, cityName, rubPerUsd, rubPerYen, asOfText, ... }
  */
 
 header('Content-Type: application/json; charset=utf-8');
@@ -186,6 +187,110 @@ function extract_hidden_rate(string $html, string $name): ?float
     return normalize_number($m[1]);
 }
 
+function parse_buy_value_from_row(DOMXPath $xp, DOMElement $row): ?float
+{
+    $tdNodes = $xp->query(".//div[contains(concat(' ', normalize-space(@class), ' '), ' currency-table__td ')]", $row);
+    if ($tdNodes === false) {
+        return null;
+    }
+
+    foreach ($tdNodes as $tdNode) {
+        if (!($tdNode instanceof DOMElement)) {
+            continue;
+        }
+        $headRaw = (string) $xp->evaluate("string(.//div[contains(concat(' ', normalize-space(@class), ' '), ' currency-table__head ')])", $tdNode);
+        $head = mb_strtolower(trim($headRaw));
+        if ($head !== 'покупка') {
+            continue;
+        }
+
+        $cellText = (string) $xp->evaluate("string(.)", $tdNode);
+        $cellText = preg_replace('/\s+/u', ' ', trim($cellText)) ?? '';
+        if ($cellText === '') {
+            return null;
+        }
+        $withoutHead = preg_replace('/^\s*покупка\s*/ui', '', $cellText) ?? $cellText;
+        return normalize_number($withoutHead);
+    }
+
+    return null;
+}
+
+/**
+ * Парсим блок "для денежных переводов" (currencyTab4):
+ * - USD покупка -> ₽ за 1 $
+ * - JPY покупка -> ₽ за N ¥ (обычно N=100), затем переводим в ₽ за 1 ¥
+ * - "Актуально на ..." из footer.
+ */
+function extract_money_transfer_rates(string $html): array
+{
+    if (!class_exists('DOMDocument')) {
+        return [null, null, null, null];
+    }
+
+    $dom = new DOMDocument();
+    if (!@$dom->loadHTML($html)) {
+        return [null, null, null, null];
+    }
+
+    $xp = new DOMXPath($dom);
+    $tab4 = $xp->query("//*[@id='currencyTab4']")->item(0);
+    if (!($tab4 instanceof DOMElement)) {
+        return [null, null, null, null];
+    }
+
+    $rubPerUsd = null;
+    $rubPerYen = null;
+    $jpyScale = null;
+
+    $rows = $xp->query(".//div[contains(concat(' ', normalize-space(@class), ' '), ' currency-table__tr ')]", $tab4);
+    if ($rows === false) {
+        return [null, null, null, null];
+    }
+
+    foreach ($rows as $rowNode) {
+        if (!($rowNode instanceof DOMElement)) {
+            continue;
+        }
+
+        $codeRaw = (string) $xp->evaluate("string(.//div[contains(concat(' ', normalize-space(@class), ' '), ' currency-table__val ')])", $rowNode);
+        $code = strtoupper(trim($codeRaw));
+        if ($code === '') {
+            continue;
+        }
+
+        $buy = parse_buy_value_from_row($xp, $rowNode);
+        if ($buy === null || $buy <= 0) {
+            continue;
+        }
+
+        if ($code === 'USD') {
+            $rubPerUsd = $buy;
+            continue;
+        }
+
+        if ($code === 'JPY') {
+            $labelRaw = (string) $xp->evaluate("string(.//span[contains(concat(' ', normalize-space(@class), ' '), ' currency-table__label ')])", $rowNode);
+            $label = trim($labelRaw);
+            $scale = 1.0;
+            if (preg_match('/за\s*(\d+)/ui', $label, $m)) {
+                $scale = max(1.0, (float) $m[1]);
+            }
+            $jpyScale = $scale;
+            $rubPerYen = $buy / $scale;
+        }
+    }
+
+    $asOf = null;
+    $footText = (string) $xp->evaluate("string((//*[contains(concat(' ', normalize-space(@class), ' '), ' currency-foot__text ')])[1])");
+    $footText = trim(preg_replace('/\s+/u', ' ', $footText) ?? '');
+    if ($footText !== '') {
+        $asOf = $footText;
+    }
+
+    return [$rubPerUsd, $rubPerYen, $jpyScale, $asOf];
+}
+
 $cityName = 'Улан-Удэ';
 
 $cookieJar = tempnam(sys_get_temp_dir(), 'atb_cookie_');
@@ -229,20 +334,29 @@ try {
         json_fail(502, 'АТБ (после смены города) вернул HTTP ' . (int) $status2, ['body' => mb_substr((string) $html2, 0, 1200)]);
     }
 
-    // 4) достаём коэффициенты конвертера
-    $usd1 = extract_hidden_rate((string) $html2, 'usd1');
-    $rub1 = extract_hidden_rate((string) $html2, 'rub1');
+    // 4) достаём курсы из блока "для денежных переводов" (currencyTab4)
+    [$rubPerUsd, $rubPerYen, $jpyScale, $asOfText] = extract_money_transfer_rates((string) $html2);
 
-    // rub1 обычно 1, но пусть будет как на странице
-    if ($usd1 === null || $usd1 <= 0) {
-        json_fail(502, 'Не найден коэффициент usd1 на странице АТБ (возможно поменялась разметка)');
-    }
-    if ($rub1 === null || $rub1 <= 0) {
-        $rub1 = 1.0;
-    }
-
+    // Fallback на старый источник (конвертер) оставляем как резерв,
+    // если верстка таблицы временно поменялась.
+    $source = 'currencyTab4';
     $fromPrice = 1.0;
-    $toPrice = $usd1 * $fromPrice / $rub1;
+    $toPrice = null;
+    if ($rubPerUsd === null || $rubPerUsd <= 0) {
+        $usd1 = extract_hidden_rate((string) $html2, 'usd1');
+        $rub1 = extract_hidden_rate((string) $html2, 'rub1');
+        if ($usd1 === null || $usd1 <= 0) {
+            json_fail(502, 'Не найден курс USD в currencyTab4 и не найден коэффициент usd1 на странице АТБ');
+        }
+        if ($rub1 === null || $rub1 <= 0) {
+            $rub1 = 1.0;
+        }
+        $toPrice = $usd1 * $fromPrice / $rub1;
+        $rubPerUsd = $toPrice;
+        $source = 'converter-hidden-inputs';
+    } else {
+        $toPrice = $rubPerUsd;
+    }
 
     echo json_encode([
         'ok' => true,
@@ -250,10 +364,14 @@ try {
         'cityName' => $cityName,
         'from_price' => $fromPrice,
         'to_price' => round($toPrice, 6),
-        'rubPerUsd' => round($toPrice, 6),
+        'rubPerUsd' => round($rubPerUsd, 6),
+        'rubPerYen' => ($rubPerYen !== null && $rubPerYen > 0) ? round($rubPerYen, 6) : null,
+        'jpyScale' => ($jpyScale !== null && $jpyScale > 0) ? $jpyScale : null,
+        'asOfText' => $asOfText,
         'meta' => [
             'source' => 'https://www.atb.su/services/exchange/',
             'sessid' => $sessid,
+            'parsedFrom' => $source,
         ],
     ], JSON_UNESCAPED_UNICODE);
 } finally {

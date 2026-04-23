@@ -566,6 +566,7 @@ async function initRatesAuto() {
   let khanDateLabel = "";
   let atbDateLabel = "";
   let cbrDateLabel = "";
+  let atbHasRubPerYen = false;
 
   for (const r of results) {
     if (r && r.data && r.data.ok) {
@@ -578,7 +579,12 @@ async function initRatesAuto() {
       }
       if (r.src === "АТБ" && inputRubPerUsd && typeof r.data.rubPerUsd === "number") {
         inputRubPerUsd.value = String(r.data.rubPerUsd);
-        atbDateLabel = nowDate;
+        if (inputRubPerYen && typeof r.data.rubPerYen === "number" && r.data.rubPerYen > 0) {
+          inputRubPerYen.value = String(r.data.rubPerYen);
+          atbHasRubPerYen = true;
+        }
+        const asOf = String(r.data.asOfText || "").trim();
+        atbDateLabel = asOf || nowDate;
       }
       if (r.src === "ЦБ" && inputRubPerEur && typeof r.data.rubPerEur === "number") {
         inputRubPerEur.value = String(r.data.rubPerEur);
@@ -590,8 +596,8 @@ async function initRatesAuto() {
     }
   }
 
-  // ₽/¥ делаем без ручного ввода: выводим из ₽/$ и ¥/$
-  const derived = deriveRubPerYenIfPossible();
+  // ₽/¥: приоритетно берём из АТБ; если нет — выводим из ₽/$ и ¥/$.
+  const derived = atbHasRubPerYen ? true : deriveRubPerYenIfPossible();
   if (!derived && inputRubPerYen) {
     // оставляем дефолт, но UI обновим
   }
@@ -601,7 +607,7 @@ async function initRatesAuto() {
   setRateDateText("rate-date-rub-per-eur", cbrDateLabel || "—");
   setRateDateText(
     "rate-date-rub-per-yen",
-    derived ? (khanDateLabel || atbDateLabel || nowDate) : "—"
+    derived ? (atbHasRubPerYen ? (atbDateLabel || nowDate) : (khanDateLabel || atbDateLabel || nowDate)) : "—"
   );
 
   updateRatesUIFromInputs();
