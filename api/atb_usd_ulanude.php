@@ -38,6 +38,118 @@ function normalize_number(string $s): ?float
     return is_finite($v) ? $v : null;
 }
 
+function can_use_proc_open(): bool
+{
+    $disabled = strtolower((string) ini_get('disable_functions'));
+    return function_exists('proc_open') && stripos($disabled, 'proc_open') === false;
+}
+
+function can_use_shell_exec(): bool
+{
+    $disabled = strtolower((string) ini_get('disable_functions'));
+    return function_exists('shell_exec') && stripos($disabled, 'shell_exec') === false;
+}
+
+function system_curl_bins(): array
+{
+    $bins = ['curl'];
+    if (PHP_OS_FAMILY === 'Windows') {
+        array_unshift($bins, 'C:\\Windows\\System32\\curl.exe');
+        if (is_dir('C:\\msys64\\mingw64\\bin')) {
+            array_unshift($bins, 'C:\\msys64\\mingw64\\bin\\curl.exe');
+        }
+    }
+    return $bins;
+}
+
+function parse_curl_output_with_status(string $out): array
+{
+    if (preg_match('/\n__HTTP_STATUS__:(\d{3})\s*$/', $out, $m, PREG_OFFSET_CAPTURE)) {
+        $status = (int) $m[1][0];
+        $markPos = $m[0][1];
+        $body = substr($out, 0, $markPos);
+        return [$body, $status];
+    }
+    return [$out, 0];
+}
+
+function system_curl_request(string $method, string $url, array $headers, ?string $body, string $cookieJar): array
+{
+    $baseArgs = [
+        '-sS',
+        '-L',
+        '-k',
+        '--connect-timeout', '12',
+        '--max-time', '25',
+        '-A', 'one-pager-calculator/1.0 (+atb parser system curl)',
+        '-c', $cookieJar,
+        '-b', $cookieJar,
+    ];
+
+    foreach ($headers as $h) {
+        $baseArgs[] = '-H';
+        $baseArgs[] = $h;
+    }
+
+    if ($method !== 'GET') {
+        $baseArgs[] = '-X';
+        $baseArgs[] = $method;
+        $baseArgs[] = '--data-raw';
+        $baseArgs[] = $body ?? '';
+    }
+
+    $baseArgs[] = '-w';
+    $baseArgs[] = "\n__HTTP_STATUS__:%{http_code}";
+    $baseArgs[] = $url;
+
+    foreach (system_curl_bins() as $bin) {
+        if ($bin !== 'curl' && !is_file($bin)) {
+            continue;
+        }
+
+        if (can_use_proc_open()) {
+            $cmd = array_merge([$bin], $baseArgs);
+            $spec = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+            $proc = @proc_open($cmd, $spec, $pipes, null, null);
+            if ($proc !== false) {
+                fclose($pipes[0]);
+                $stdout = (string) stream_get_contents($pipes[1]);
+                $stderr = (string) stream_get_contents($pipes[2]);
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+                proc_close($proc);
+
+                if ($stdout !== '') {
+                    [$respBody, $status] = parse_curl_output_with_status($stdout);
+                    if ($status > 0) {
+                        return [$respBody, $status, null];
+                    }
+                }
+                if ($stderr !== '') {
+                    return [null, 0, 'system curl error: ' . $stderr];
+                }
+            }
+        }
+
+        if (can_use_shell_exec()) {
+            $parts = [escapeshellarg($bin)];
+            foreach ($baseArgs as $arg) {
+                $parts[] = escapeshellarg($arg);
+            }
+            $line = implode(' ', $parts) . ' 2>&1';
+            $out = shell_exec($line);
+            if (is_string($out) && $out !== '') {
+                [$respBody, $status] = parse_curl_output_with_status($out);
+                if ($status > 0) {
+                    return [$respBody, $status, null];
+                }
+            }
+        }
+    }
+
+    return [null, 0, 'Не удалось выполнить системный curl (проверьте PATH и disable_functions).'];
+}
+
 /**
  * CURL с cookie jar (обязательно для setCity).
  * На Windows без CA часто ломается SSL — пробуем ещё раз без валидации (публичные данные).
@@ -45,7 +157,7 @@ function normalize_number(string $s): ?float
 function curl_request(string $method, string $url, array $headers, ?string $body, string $cookieJar): array
 {
     if (!function_exists('curl_init')) {
-        json_fail(502, 'Для парсинга АТБ нужен PHP с расширением curl (ext-curl).');
+        return system_curl_request($method, $url, $headers, $body, $cookieJar);
     }
 
     $try = function (bool $insecureSsl) use ($method, $url, $headers, $body, $cookieJar): array {
