@@ -81,7 +81,20 @@ if (!function_exists('str_starts_with')) {
 }
 
 /**
+ * Убираем токен из текста ошибок (systemd journal, логи).
+ */
+function redactTelegramToken(string $message, string $botToken): string
+{
+    return $botToken !== '' ? str_replace($botToken, '[token]', $message) : $message;
+}
+
+/**
  * Вызов Telegram Bot API.
+ *
+ * Предпочтительно cURL + только IPv4: на части VPS IPv6 до api.telegram.org недоступен,
+ * и file_get_contents зависает с Connection timed out.
+ *
+ * Нужно расширение php-curl: sudo apt install php-curl (версию подставить под свой PHP CLI).
  *
  * @return array<string,mixed>
  */
@@ -93,21 +106,49 @@ function telegramApiRequest(string $botToken, string $method, array $params = []
         $url .= '?' . http_build_query($params);
     }
 
-    $context = stream_context_create([
-        'http' => [
-            'method' => 'GET',
-            'timeout' => 30,
-        ],
-    ]);
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_CONNECTTIMEOUT => 20,
+            CURLOPT_TIMEOUT => 70,
+            CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+            CURLOPT_HTTPGET => true,
+        ]);
 
-    $raw = @file_get_contents($url, false, $context);
-    if ($raw === false) {
-        $err = error_get_last();
-        $hint = is_array($err) && isset($err['message']) ? (string) $err['message'] : 'file_get_contents вернул false';
-        return ['ok' => false, 'description' => $hint];
+        $raw = curl_exec($ch);
+        $curlErr = curl_error($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($raw === false) {
+            return ['ok' => false, 'description' => $curlErr !== '' ? $curlErr : 'curl_exec вернул false'];
+        }
+
+        if ($raw === '') {
+            return ['ok' => false, 'description' => $curlErr !== ''
+                ? $curlErr
+                : 'Пустой ответ от Telegram (HTTP ' . $httpCode . ')'];
+        }
+    } else {
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'timeout' => 70,
+            ],
+        ]);
+
+        $raw = @file_get_contents($url, false, $context);
+        if ($raw === false) {
+            $err = error_get_last();
+            $hint = is_array($err) && isset($err['message']) ? (string) $err['message'] : 'file_get_contents вернул false';
+
+            return ['ok' => false, 'description' => redactTelegramToken($hint, $botToken)];
+        }
     }
 
-    $decoded = json_decode($raw, true);
+    $decoded = json_decode((string) $raw, true);
     if (!is_array($decoded)) {
         return ['ok' => false, 'description' => 'Некорректный JSON от Telegram API'];
     }
