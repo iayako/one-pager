@@ -7,7 +7,7 @@ declare(strict_types=1);
  * Команды:
  *   /start, /help — справка
  *   /leads — список заявок (кнопки и листание)
- *   /lead &lt;id&gt; — карточка заявки
+ *   /lead &lt;id&gt; — карточка заявки (если к расчёту привязан лог — кнопка «Расчёт №…»)
  *   /last — последний расчёт (calculation_log)
  *   /id &lt;n&gt; — расчёт по ID (calculation_log)
  *
@@ -423,33 +423,186 @@ function answerCallbackQuery(string $botToken, string $callbackQueryId, ?string 
     telegramApiPost($botToken, 'answerCallbackQuery', $p);
 }
 
+function fmtRateNum($n): string
+{
+    if ($n === null || !is_numeric($n)) {
+        return '—';
+    }
+    $v = (float) $n;
+
+    return is_finite($v) ? number_format($v, 4, '.', ' ') : '—';
+}
+
+function fmtIntSep($n): string
+{
+    if ($n === null || !is_numeric($n)) {
+        return '—';
+    }
+    $v = (float) $n;
+
+    return is_finite($v) ? number_format(round($v), 0, '.', ' ') : '—';
+}
+
+function vehicleAgeLabelPlain(?string $c): string
+{
+    return match ($c) {
+        'under3' => 'Младше 3 лет',
+        '3to5' => 'От 3 до 5 лет',
+        'over5' => 'Старше 5 лет',
+        default => ($c !== null && $c !== '') ? $c : '—',
+    };
+}
+
+function engineTypeLabelPlain(?string $c): string
+{
+    return match ($c) {
+        'gasoline' => 'ДВС бензиновый',
+        'hybrid' => 'Гибрид',
+        default => ($c !== null && $c !== '') ? $c : '—',
+    };
+}
+
 /**
- * @param array<string,mixed> $data
+ * Человекочитаемый вывод полей ввода калькулятора (как на сайте / ТЗ).
+ *
+ * @param array<string,mixed> $in
  */
-function formatShortJson(array $data, int $maxLen = 600): string
+function formatCalculationInputsRu(array $in): string
+{
+    /** @var array<string,string> */
+    static $labels = [
+        'yenPerUsd' => 'Курс ¥/$ (йен за $)',
+        'rubPerUsd' => 'Курс ₽/$',
+        'rubPerYen' => 'Курс ₽/¥',
+        'rubPerEur' => 'Курс ₽/€ (ЦБ, для пошлины)',
+        'auctionYen' => 'Цена авто на аукционе, ¥',
+        'vehicleAge' => 'Возраст автомобиля',
+        'engineType' => 'Тип двигателя',
+        'auctionName' => 'Аукцион (FOB из справочника)',
+        'engineDisplacementCc' => 'Объём двигателя, см³',
+        'enginePowerHp' => 'Мощность, л.с.',
+        'fobYen' => 'FOB, ¥',
+        'vanningYen' => 'Vanning, ¥',
+        'usdTrain' => 'Доставка Train, $',
+        'usdTrack' => 'Доставка Track, $',
+        'rubInInvoice' => 'Сумма в ₽ для включения в инвойс',
+        'labRub' => 'ЭПТС (лаборатория), ₽',
+    ];
+
+    $order = [
+        'yenPerUsd', 'rubPerUsd', 'rubPerYen', 'rubPerEur',
+        'auctionYen', 'vehicleAge', 'engineType', 'auctionName',
+        'engineDisplacementCc', 'enginePowerHp',
+        'fobYen', 'vanningYen', 'usdTrain', 'usdTrack', 'rubInInvoice', 'labRub',
+    ];
+
+    $lines = [];
+    $done = [];
+
+    foreach ($order as $key) {
+        if (!array_key_exists($key, $in)) {
+            continue;
+        }
+        $done[$key] = true;
+        $label = $labels[$key] ?? $key;
+        $v = $in[$key];
+        if ($key === 'vehicleAge') {
+            $lines[] = $label . ': ' . vehicleAgeLabelPlain(is_string($v) ? $v : null);
+        } elseif ($key === 'engineType') {
+            $lines[] = $label . ': ' . engineTypeLabelPlain(is_string($v) ? $v : null);
+        } elseif (in_array($key, ['yenPerUsd', 'rubPerUsd', 'rubPerYen', 'rubPerEur'], true)) {
+            $lines[] = $label . ': ' . fmtRateNum($v);
+        } elseif (in_array($key, ['auctionYen', 'fobYen', 'vanningYen'], true)) {
+            $lines[] = $label . ': ' . fmtIntSep($v) . ' ¥';
+        } elseif (in_array($key, ['usdTrain', 'usdTrack'], true)) {
+            $lines[] = $label . ': ' . fmtIntSep($v) . ' $';
+        } elseif (in_array($key, ['engineDisplacementCc'], true)) {
+            $lines[] = $label . ': ' . fmtIntSep($v);
+        } elseif (in_array($key, ['enginePowerHp'], true)) {
+            $lines[] = $label . ': ' . (is_numeric($v) ? (string) $v : '—');
+        } elseif (in_array($key, ['rubInInvoice', 'labRub'], true)) {
+            $lines[] = $label . ': ' . fmtIntSep($v) . ' ₽';
+        } else {
+            $lines[] = $label . ': ' . (is_scalar($v) ? (string) $v : json_encode($v, JSON_UNESCAPED_UNICODE));
+        }
+    }
+
+    foreach ($in as $key => $v) {
+        if (isset($done[$key])) {
+            continue;
+        }
+        $lines[] = $key . ': ' . (is_scalar($v) || $v === null
+            ? (string) ($v ?? '')
+            : json_encode($v, JSON_UNESCAPED_UNICODE));
+    }
+
+    return implode("\n", $lines);
+}
+
+/**
+ * @param array<string,mixed>|mixed $block
+ */
+function formatBankBlockRu($block, string $title): string
+{
+    if (!is_array($block)) {
+        return $title . "\n  (нет данных)";
+    }
+
+    $base = $block['baseRub'] ?? null;
+    $fee = $block['feeRub'] ?? null;
+    $tot = $block['totalRub'] ?? null;
+
+    return $title . "\n"
+        . '  База по инвойсу, ₽: ' . fmtIntSep($base) . "\n"
+        . '  Комиссия банка, ₽: ' . fmtIntSep($fee) . "\n"
+        . '  Всего оплата в банк, ₽: ' . fmtIntSep($tot);
+}
+
+/**
+ * @param array<string,mixed>|mixed $block
+ */
+function formatCustomsBlockRu($block, string $title): string
+{
+    if (!is_array($block)) {
+        return $title . "\n  (нет данных)";
+    }
+
+    return $title . "\n"
+        . '  Таможенная стоимость, ₽: ' . fmtIntSep($block['customsValueRub'] ?? null) . "\n"
+        . '  Сбор за оформление, ₽: ' . fmtIntSep($block['clearanceFeeRub'] ?? null) . "\n"
+        . '  Пошлина, ₽: ' . fmtIntSep($block['importDutyRub'] ?? null) . "\n"
+        . '  Утилизационный сбор, ₽: ' . fmtIntSep($block['recyclingFeeRub'] ?? null) . "\n"
+        . '  Таможня всего, ₽: ' . fmtIntSep($block['totalRub'] ?? null);
+}
+
+/**
+ * Человекочитаемый вывод результатов расчёта (как в CALCULATION.md / сайт).
+ *
+ * @param array<string,mixed> $o
+ */
+function formatCalculationOutputsRu(array $o): string
 {
     $parts = [];
 
-    foreach ($data as $key => $value) {
-        if (is_scalar($value) || $value === null) {
-            $valStr = (string) ($value ?? 'null');
-        } else {
-            $valStr = json_encode($value, JSON_UNESCAPED_UNICODE);
-        }
-
-        if ($valStr === false) {
-            $valStr = '[error]';
-        }
-
-        $parts[] = $key . ': ' . $valStr;
-
-        $joined = implode("\n", $parts);
-        if (mb_strlen($joined, 'UTF-8') > $maxLen) {
-            array_pop($parts);
-            $parts[] = '...';
-            break;
-        }
-    }
+    $parts[] = 'Комиссия аукциона, ¥: ' . fmtIntSep($o['auctionCommissionYen'] ?? null);
+    $parts[] = 'Расходы по Японии, ¥: ' . fmtIntSep($o['japanYenTotal'] ?? null);
+    $parts[] = 'Эквивалент ₽ в инвойсе, ¥: ' . fmtIntSep($o['rubInvoiceYenEquivalent'] ?? null);
+    $parts[] = 'Доставка Train (перевод $→¥), ¥: ' . fmtIntSep($o['usdTrainYen'] ?? null);
+    $parts[] = 'Доставка Track (перевод $→¥), ¥: ' . fmtIntSep($o['usdTrackYen'] ?? null);
+    $parts[] = 'Инвойс всего (Train), ¥: ' . fmtIntSep($o['invoiceYenTrain'] ?? null);
+    $parts[] = 'Инвойс всего (Track), ¥: ' . fmtIntSep($o['invoiceYenTrack'] ?? null);
+    $parts[] = '';
+    $parts[] = formatBankBlockRu($o['bankTrain'] ?? null, 'Оплата в банке (Train)');
+    $parts[] = '';
+    $parts[] = formatBankBlockRu($o['bankTrack'] ?? null, 'Оплата в банке (Track)');
+    $parts[] = '';
+    $parts[] = formatCustomsBlockRu($o['customsTrain'] ?? null, 'Таможня (Train)');
+    $parts[] = '';
+    $parts[] = formatCustomsBlockRu($o['customsTrack'] ?? null, 'Таможня (Track)');
+    $parts[] = '';
+    $parts[] = 'ЭПТС (лаборатория), ₽: ' . fmtIntSep($o['labRub'] ?? null);
+    $parts[] = 'Итого с доставкой Train, ₽: ' . fmtIntSep($o['grandTotalTrainRub'] ?? null);
+    $parts[] = 'Итого с доставкой Track, ₽: ' . fmtIntSep($o['grandTotalTrackRub'] ?? null);
 
     return implode("\n", $parts);
 }
@@ -594,6 +747,21 @@ function buildLeadDetailHtml($row): string
     return implode("\n", $lines);
 }
 
+/**
+ * Кнопка под карточкой заявки: открыть связанный calculation_log.
+ *
+ * @return array<int, array<int, array{text: string, callback_data: string}>>|null
+ */
+function buildLeadDetailInlineKeyboard($calculationLogId): ?array
+{
+    $id = is_numeric($calculationLogId) ? (int) $calculationLogId : 0;
+    if ($id <= 0) {
+        return null;
+    }
+
+    return [[['text' => truncatePlain('📊 Расчёт №' . $id, 64), 'callback_data' => 'cl_' . $id]]];
+}
+
 function handleLastCommand(PDO &$pdo): ?string
 {
     $attempts = 0;
@@ -614,8 +782,8 @@ function handleLastCommand(PDO &$pdo): ?string
             $inputs = json_decode((string) $row['inputs_json'], true);
             $outputs = json_decode((string) $row['outputs_json'], true);
 
-            $inputsText = is_array($inputs) ? formatShortJson($inputs) : '[не удалось разобрать JSON]';
-            $outputsText = is_array($outputs) ? formatShortJson($outputs) : '[не удалось разобрать JSON]';
+            $inputsText = is_array($inputs) ? formatCalculationInputsRu($inputs) : '[не удалось разобрать JSON]';
+            $outputsText = is_array($outputs) ? formatCalculationOutputsRu($outputs) : '[не удалось разобрать JSON]';
 
             $text = "Последний расчёт #" . (int) $row['id'] . "\n";
             $text .= 'Создан (Иркутск): ' . formatDatetimeIrkutsk((string) $row['created_at']) . "\n\n";
@@ -664,8 +832,8 @@ function handleIdCommand(PDO &$pdo, int $id): ?string
             $inputs = json_decode((string) $row['inputs_json'], true);
             $outputs = json_decode((string) $row['outputs_json'], true);
 
-            $inputsText = is_array($inputs) ? formatShortJson($inputs) : '[не удалось разобрать JSON]';
-            $outputsText = is_array($outputs) ? formatShortJson($outputs) : '[не удалось разобрать JSON]';
+            $inputsText = is_array($inputs) ? formatCalculationInputsRu($inputs) : '[не удалось разобрать JSON]';
+            $outputsText = is_array($outputs) ? formatCalculationOutputsRu($outputs) : '[не удалось разобрать JSON]';
 
             $text = "Расчёт #" . (int) $row['id'] . "\n";
             $text .= 'Создан (Иркутск): ' . formatDatetimeIrkutsk((string) $row['created_at']) . "\n\n";
@@ -705,6 +873,7 @@ function helpText(): string
 /id N — расчёт по ID (calculation_log)
 
 В списке заявок нажимайте «Открыть №…» для подробностей.
+Если заявка привязана к расчёту — на карточке будет кнопка «Расчёт №…».
 TXT;
 }
 
@@ -793,9 +962,21 @@ while (true) {
                     $stmt->execute([':id' => $leadId]);
                     $row = $stmt->fetch();
                     $html = buildLeadDetailHtml($row);
-                    sendHtml($botToken, $cqChatId, $html);
+                    $kbd = buildLeadDetailInlineKeyboard(is_array($row) ? ($row['calculation_log_id'] ?? null) : null);
+                    sendHtml($botToken, $cqChatId, $html, $kbd);
                 } catch (Throwable $e) {
                     sendPlain($botToken, $cqChatId, 'Ошибка БД: ' . $e->getMessage());
+                }
+                continue;
+            }
+
+            if (preg_match('/^cl_(\d+)$/', $data, $m) && $cqChatId > 0) {
+                $calcId = (int) $m[1];
+                try {
+                    $reply = handleIdCommand($pdo, $calcId);
+                    sendPlain($botToken, $cqChatId, $reply ?? 'Не удалось загрузить расчёт.');
+                } catch (Throwable $e) {
+                    sendPlain($botToken, $cqChatId, 'Ошибка: ' . $e->getMessage());
                 }
                 continue;
             }
@@ -880,7 +1061,8 @@ while (true) {
                 );
                 $stmt->execute([':id' => $leadId]);
                 $row = $stmt->fetch();
-                sendHtml($botToken, $chatId, buildLeadDetailHtml($row));
+                $kbd = buildLeadDetailInlineKeyboard(is_array($row) ? ($row['calculation_log_id'] ?? null) : null);
+                sendHtml($botToken, $chatId, buildLeadDetailHtml($row), $kbd);
             } catch (Throwable $e) {
                 sendPlain($botToken, $chatId, 'Ошибка: ' . $e->getMessage());
             }
