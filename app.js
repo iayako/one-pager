@@ -572,6 +572,7 @@ async function initRatesAuto() {
   const commonActualLabel = formatLocalDateTime(now) || formatLocalDate(now) || "—";
   const todayIso = formatIsoLocalDate(now);
   const dateSuffix = todayIso ? `?date=${encodeURIComponent(todayIso)}` : "";
+  const requestNonce = `ts=${Date.now()}`;
   setRateDateText("rate-date-common", "—");
 
   const inputYenPerUsd = document.getElementById("yen-per-usd");
@@ -584,7 +585,7 @@ async function initRatesAuto() {
       .then((r) => r.json())
       .then((data) => ({ src: "Khan Bank", data }))
       .catch((e) => ({ src: "Khan Bank", error: e })),
-    fetch(resolveAppUrl("api/atb_usd_ulanude.php"), { cache: "no-store" })
+    fetch(resolveAppUrl(`api/atb_usd_ulanude.php?${requestNonce}`), { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => ({ src: "АТБ", data }))
       .catch((e) => ({ src: "АТБ", error: e })),
