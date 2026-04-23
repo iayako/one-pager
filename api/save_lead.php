@@ -219,15 +219,22 @@ try {
     ], JSON_UNESCAPED_UNICODE);
 } catch (PDOException $e) {
     $msg = $e->getMessage();
+    $code = (string) $e->getCode();
     $isMissingTable = strpos($msg, 'lead_request') !== false
         || strpos($msg, "doesn't exist") !== false
-        || $e->getCode() === '42S02';
-    http_response_code($isMissingTable ? 503 : 500);
+        || $code === '42S02';
+    $isMissingColumn = str_contains($msg, 'Unknown column')
+        || $code === '42S22';
+    http_response_code($isMissingTable || $isMissingColumn ? 503 : 500);
+    $error = 'Ошибка сохранения заявки в БД';
+    if ($isMissingTable) {
+        $error = 'Таблица lead_request не создана. Выполните api/schema.sql в MySQL.';
+    } elseif ($isMissingColumn) {
+        $error = 'В таблице заявок нет новых полей. На сервере выполните: mysql … < api/migration_lead_client_fields.sql';
+    }
     echo json_encode([
         'ok' => false,
-        'error' => $isMissingTable
-            ? 'Таблица lead_request не создана. Выполните api/schema.sql в MySQL.'
-            : 'Ошибка сохранения заявки в БД',
+        'error' => $error,
     ], JSON_UNESCAPED_UNICODE);
 } catch (Throwable) {
     http_response_code(500);
