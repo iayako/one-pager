@@ -229,6 +229,43 @@
           </dl>
         </article>
       </div>
+
+      <section class="lead-card lead-card--hidden" id="lead-card" aria-label="Заявка на консультацию">
+        <div class="lead-card__head">
+          <h3 class="lead-card__title">Хотите, чтобы мы связались с вами по этому расчёту?</h3>
+          <p class="lead-card__sub" id="lead-summary">Оставьте контакты, и мы поможем с подбором и доставкой.</p>
+        </div>
+        <form class="lead-form" id="lead-form" novalidate>
+          <label class="field">
+            <span class="field__label">Имя</span>
+            <input type="text" id="lead-name" name="name" maxlength="80" placeholder="Как к вам обращаться" />
+          </label>
+          <label class="field">
+            <span class="field__label">Телефон</span>
+            <input type="tel" id="lead-phone" name="phone" required maxlength="25" placeholder="+7 900 000-00-00" />
+          </label>
+          <label class="field">
+            <span class="field__label">Удобный способ связи</span>
+            <select id="lead-contact-method" name="contactMethod">
+              <option value="phone">Звонок</option>
+              <option value="telegram">Telegram</option>
+              <option value="whatsapp">WhatsApp</option>
+            </select>
+          </label>
+          <label class="field field--full">
+            <span class="field__label">Комментарий (необязательно)</span>
+            <input type="text" id="lead-comment" name="comment" maxlength="300" placeholder="Например: интересует Track, бензин 2.0" />
+          </label>
+          <label class="lead-form__consent field--full">
+            <input type="checkbox" id="lead-consent" required />
+            <span>Согласен(а) на обработку персональных данных</span>
+          </label>
+          <div class="lead-form__actions field--full">
+            <button type="submit" class="btn btn--primary" id="lead-submit">Отправить заявку</button>
+            <p class="lead-form__status" id="lead-status" aria-live="polite"></p>
+          </div>
+        </form>
+      </section>
     </section>
 
     <footer class="footer">

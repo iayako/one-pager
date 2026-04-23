@@ -150,6 +150,9 @@ const APP_SCRIPT_URL = (() => {
   return window.location.href;
 })();
 
+let latestCalculationSnapshot = null;
+let latestCalculationId = null;
+
 /** Доп. комиссия аукциона от цены авто (¥), таблица из ТЗ */
 function auctionCommissionYen(auctionPrice) {
   const p = Number(auctionPrice);
@@ -670,13 +673,22 @@ function computeCalculation(data) {
   };
 }
 
-function persistCalculationSnapshot(snapshot) {
-  fetch(resolveAppUrl("api/save_calculation.php"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json; charset=utf-8" },
-    body: JSON.stringify(snapshot),
-    cache: "no-store",
-  }).catch(() => {});
+async function persistCalculationSnapshot(snapshot) {
+  latestCalculationSnapshot = snapshot;
+  try {
+    const resp = await fetch(resolveAppUrl("api/save_calculation.php"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify(snapshot),
+      cache: "no-store",
+    });
+    const data = await resp.json().catch(() => null);
+    if (resp.ok && data && data.ok && Number.isFinite(Number(data.id))) {
+      latestCalculationId = Number(data.id);
+    }
+  } catch {
+    /* лог расчёта необязателен, не прерываем UX */
+  }
 }
 
 function render(data) {
@@ -701,6 +713,12 @@ function render(data) {
   document.getElementById("out-grand-track").textContent = formatRub(o.grandTotalTrackRub);
 
   persistCalculationSnapshot({ inputs: snap.inputs, outputs: snap.outputs });
+  const leadCard = document.getElementById("lead-card");
+  if (leadCard) leadCard.classList.remove("lead-card--hidden");
+  const leadSummary = document.getElementById("lead-summary");
+  if (leadSummary) {
+    leadSummary.textContent = `Итог по расчёту: Train ${formatRub(o.grandTotalTrainRub)} · Track ${formatRub(o.grandTotalTrackRub)}.`;
+  }
 }
 
 function setSelectedAuction(name, fobYen) {
@@ -810,6 +828,83 @@ function setCbrEurDateLine(data) {
   el.textContent = `Официальный курс ЦБ на дату: ${label}`;
 }
 
+function setLeadStatus(message, kind = "") {
+  const el = document.getElementById("lead-status");
+  if (!el) return;
+  el.textContent = message || "";
+  el.classList.remove("lead-form__status--ok", "lead-form__status--error");
+  if (kind === "ok") el.classList.add("lead-form__status--ok");
+  if (kind === "error") el.classList.add("lead-form__status--error");
+}
+
+function normalizePhone(value) {
+  const src = String(value || "").trim();
+  const plus = src.startsWith("+") ? "+" : "";
+  const digits = src.replace(/\D/g, "");
+  return plus + digits;
+}
+
+function initLeadForm() {
+  const form = document.getElementById("lead-form");
+  if (!(form instanceof HTMLFormElement)) return;
+
+  const submitBtn = document.getElementById("lead-submit");
+  const phoneEl = document.getElementById("lead-phone");
+  const consentEl = document.getElementById("lead-consent");
+  const nameEl = document.getElementById("lead-name");
+  const methodEl = document.getElementById("lead-contact-method");
+  const commentEl = document.getElementById("lead-comment");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!(phoneEl instanceof HTMLInputElement) || !(consentEl instanceof HTMLInputElement)) return;
+
+    const phoneNorm = normalizePhone(phoneEl.value);
+    if (!phoneNorm || phoneNorm.replace(/\D/g, "").length < 11) {
+      setLeadStatus("Укажите корректный номер телефона.", "error");
+      phoneEl.focus();
+      return;
+    }
+    if (!consentEl.checked) {
+      setLeadStatus("Подтвердите согласие на обработку персональных данных.", "error");
+      consentEl.focus();
+      return;
+    }
+
+    const payload = {
+      name: nameEl instanceof HTMLInputElement ? String(nameEl.value || "").trim() : "",
+      phone: phoneNorm,
+      contactMethod: methodEl instanceof HTMLSelectElement ? String(methodEl.value || "phone") : "phone",
+      comment: commentEl instanceof HTMLInputElement ? String(commentEl.value || "").trim() : "",
+      calculationLogId: latestCalculationId,
+      calculationSnapshot: latestCalculationSnapshot,
+    };
+
+    if (submitBtn instanceof HTMLButtonElement) submitBtn.disabled = true;
+    setLeadStatus("Отправляем заявку...");
+    try {
+      const resp = await fetch(resolveAppUrl("api/save_lead.php"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify(payload),
+        cache: "no-store",
+      });
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok || !data || !data.ok) {
+        const msg = data && typeof data.error === "string" ? data.error : "Не удалось отправить заявку.";
+        setLeadStatus(msg, "error");
+        return;
+      }
+      setLeadStatus("Заявка отправлена. Мы свяжемся с вами в ближайшее время.", "ok");
+      form.reset();
+    } catch {
+      setLeadStatus("Ошибка сети. Попробуйте ещё раз.", "error");
+    } finally {
+      if (submitBtn instanceof HTMLButtonElement) submitBtn.disabled = false;
+    }
+  });
+}
+
 function wireFormListeners() {
   const form = document.getElementById("calc-form");
   if (form) {
@@ -831,6 +926,7 @@ function wireFormListeners() {
     initRatesAuto();
     renderAuctionOptions();
     updateProgressiveSteps();
+    initLeadForm();
     wireFormListeners();
     updateRatesUIFromInputs();
   } catch (err) {
