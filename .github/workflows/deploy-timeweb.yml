@@ -53,3 +53,11 @@ jobs:
           ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p ${{ secrets.VPS_PORT }} \
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
             'bash /var/www/one-pager/scripts/fix-cache-perms.sh'
+
+      # Перезапуск long-polling бота после выкладки api/telegram_bot.php.
+      # На сервере: sudo visudo -f /etc/sudoers.d/deploy — строка NOPASSWD для systemctl (см. комментарий ниже).
+      - name: Restart Telegram bot (systemd)
+        run: |
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p ${{ secrets.VPS_PORT }} \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            'sudo /usr/bin/systemctl restart one-pager-telegram-bot.service'
