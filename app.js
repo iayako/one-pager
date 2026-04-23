@@ -492,10 +492,53 @@ function setRateText(id, value) {
   if (el) el.textContent = value;
 }
 
+/** ISO или Date → строка вида «24.04.2026, 00:32:40 UTC+3» (Europe/Moscow + смещение). */
+function formatInstantRuWithTimeZone(isoOrDate) {
+  const d =
+    isoOrDate instanceof Date ? isoOrDate : new Date(isoOrDate);
+  if (Number.isNaN(d.getTime())) {
+    const s = String(isoOrDate || "").trim();
+    return s || "—";
+  }
+  try {
+    return new Intl.DateTimeFormat("ru-RU", {
+      timeZone: "Europe/Moscow",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+      timeZoneName: "shortOffset",
+    }).format(d);
+  } catch {
+    try {
+      return new Intl.DateTimeFormat("ru-RU", {
+        timeZone: "Europe/Moscow",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hourCycle: "h23",
+      }).format(d);
+    } catch {
+      return d.toISOString();
+    }
+  }
+}
+
 function normalizeRateDateLabel(dateLabel) {
   const raw = String(dateLabel || "").trim();
   if (!raw || raw === "—") return "—";
-  return raw.replace(/^актуально\s+на[:\s]*/i, "").trim() || "—";
+  const stripped = raw.replace(/^актуально\s+на[:\s]*/i, "").trim();
+  const candidate = stripped || raw;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(candidate)) {
+    return formatInstantRuWithTimeZone(candidate);
+  }
+  return stripped || "—";
 }
 
 function setRateDateText(id, dateLabel) {
@@ -572,7 +615,7 @@ const RATES_SNAPSHOT_MAX_AGE_SEC = 7200;
 
 async function initRatesAuto() {
   const now = new Date();
-  const commonActualLabel = formatLocalDateTime(now) || formatLocalDate(now) || "—";
+  const commonActualLabel = formatInstantRuWithTimeZone(now);
   const todayIso = formatIsoLocalDate(now);
   const dateSuffix = todayIso ? `?date=${encodeURIComponent(todayIso)}` : "";
   const requestNonce = `ts=${Date.now()}`;
@@ -615,7 +658,7 @@ async function initRatesAuto() {
       const derived = atbHasRubPerYen ? true : deriveRubPerYenIfPossible();
       const snapLabel =
         snap.fetchedAt && String(snap.fetchedAt).trim() !== ""
-          ? String(snap.fetchedAt)
+          ? formatInstantRuWithTimeZone(String(snap.fetchedAt).trim())
           : commonActualLabel;
       setRateDateText("rate-date-common", derived ? snapLabel : "—");
       updateRatesUIFromInputs();
