@@ -567,6 +567,9 @@ function deriveRubPerYenIfPossible() {
   return true;
 }
 
+/** Макс. возраст снимка из cron (api/rates_snapshot.php), сек.; дальше — запрос к живым API */
+const RATES_SNAPSHOT_MAX_AGE_SEC = 7200;
+
 async function initRatesAuto() {
   const now = new Date();
   const commonActualLabel = formatLocalDateTime(now) || formatLocalDate(now) || "—";
@@ -579,6 +582,53 @@ async function initRatesAuto() {
   const inputRubPerUsd = document.getElementById("rub-per-usd");
   const inputRubPerYen = document.getElementById("rub-per-yen");
   const inputRubPerEur = document.getElementById("rub-per-eur");
+
+  let usedSnapshot = false;
+  try {
+    const snapResp = await fetch(
+      resolveAppUrl(`api/rates_snapshot.php?${requestNonce}`),
+      { cache: "no-store" }
+    );
+    const snap = await snapResp.json().catch(() => null);
+    const age = snap && typeof snap.ageSec === "number" ? snap.ageSec : Infinity;
+    if (
+      snap &&
+      snap.ok &&
+      snap.complete &&
+      age <= RATES_SNAPSHOT_MAX_AGE_SEC &&
+      typeof snap.yenPerUsd === "number" &&
+      typeof snap.rubPerUsd === "number" &&
+      typeof snap.rubPerEur === "number"
+    ) {
+      if (inputYenPerUsd) inputYenPerUsd.value = String(snap.yenPerUsd);
+      if (inputRubPerUsd) inputRubPerUsd.value = String(snap.rubPerUsd);
+      if (inputRubPerEur) inputRubPerEur.value = String(snap.rubPerEur);
+      let atbHasRubPerYen = false;
+      if (
+        inputRubPerYen &&
+        typeof snap.rubPerYen === "number" &&
+        snap.rubPerYen > 0
+      ) {
+        inputRubPerYen.value = String(snap.rubPerYen);
+        atbHasRubPerYen = true;
+      }
+      const derived = atbHasRubPerYen ? true : deriveRubPerYenIfPossible();
+      const snapLabel =
+        snap.fetchedAt && String(snap.fetchedAt).trim() !== ""
+          ? String(snap.fetchedAt)
+          : commonActualLabel;
+      setRateDateText("rate-date-common", derived ? snapLabel : "—");
+      updateRatesUIFromInputs();
+      updateProgressiveSteps();
+      usedSnapshot = true;
+    }
+  } catch {
+    /* fallback на живые API */
+  }
+
+  if (usedSnapshot) {
+    return;
+  }
 
   const tasks = [
     fetch(resolveAppUrl(`api/khan_rates.php${dateSuffix}`), { cache: "no-store" })
