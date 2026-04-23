@@ -10,11 +10,17 @@ declare(strict_types=1);
  * Лог cron лучше писать в каталог сайта (www-data может не иметь прав на /var/log/):
  *
  *   Пример строки crontab (каждые 15 минут — поле минут 0,15,30,45):
- *   0,15,30,45 * * * * /usr/bin/php .../refresh_rates_cache.php https://example.ru >> .../api/cache/cron.log 2>&1
+ *   0,15,30,45 * * * * /usr/bin/php .../refresh_rates_cache.php https://uus-avto.ru >> .../api/cache/cron.log 2>&1
  *
  * Базовый URL — первый аргумент или переменная окружения RATES_BASE_URL.
  * На том же сервере можно передать https://uus-avto.ru или http://127.0.0.1
  * (если nginx отдаёт сайт на localhost с нужным Host).
+ *
+ * Права на каталог кэша (иначе «Permission denied» при записи *.tmp / rates_snapshot.json):
+ *   После деплоя GitHub Actions вызывается scripts/fix-cache-perms.sh (нужен sudo без пароля для пользователя деплоя).
+ *   Вручную на сервере:
+ *   sudo bash /var/www/one-pager/scripts/fix-cache-perms.sh
+ *   Или по шагам: mkdir → chown www-data:www-data → chmod 775 на api/cache.
  */
 
 if (PHP_SAPI !== 'cli') {
