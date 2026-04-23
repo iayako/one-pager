@@ -612,6 +612,19 @@ input::placeholder {
   color: #ff8f8f;
 }
 
+.lead-form .field__hint {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.lead-form input.lead-form__input--invalid {
+  border-color: #d95353;
+  box-shadow: 0 0 0 1px rgba(217, 83, 83, 0.35);
+}
+
 .result-card {
   border-radius: var(--radius);
   border: 1px solid var(--border);

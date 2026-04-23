@@ -16,6 +16,20 @@ declare(strict_types=1);
 
 const LEADS_PAGE_SIZE = 5;
 
+/** Текст на reply-клавиатуре (должен совпадать с проверкой в обработчике). */
+const MENU_LEADS = '📋 Заявки';
+const MENU_HELP = 'ℹ️ Справка';
+const MENU_LAST = '🔧 Последний расчёт';
+
+/** Показ даты/времени в боте (заявки, расчёты). */
+const DISPLAY_TIMEZONE = 'Asia/Irkutsk';
+
+/**
+ * В какой зоне интерпретировать строку created_at из MySQL без суффикса TZ.
+ * Чаще всего TIMESTAMP отдаётся в UTC; если сдвиг неверный — смените на зону сессии MySQL.
+ */
+const DB_NAIVE_DATETIME_SOURCE_TZ = 'UTC';
+
 if (PHP_SAPI !== 'cli') {
     fwrite(STDERR, "Этот скрипт нужно запускать из консоли: php api/telegram_bot.php\n");
     exit(1);
@@ -94,6 +108,36 @@ function tgEsc(?string $s): string
     $s = (string) $s;
 
     return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+}
+
+/**
+ * Строка из БД (Y-m-d H:i:s) → локальное время Иркутска для отображения в боте.
+ */
+function formatDatetimeIrkutsk(?string $mysqlDatetime): string
+{
+    if ($mysqlDatetime === null) {
+        return '—';
+    }
+    $s = trim((string) $mysqlDatetime);
+    if ($s === '') {
+        return '—';
+    }
+
+    try {
+        $from = new DateTimeZone(DB_NAIVE_DATETIME_SOURCE_TZ);
+        $to = new DateTimeZone(DISPLAY_TIMEZONE);
+        $dt = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $s, $from);
+        if ($dt === false) {
+            $dt = DateTimeImmutable::createFromFormat('Y-m-d H:i:s.u', $s, $from);
+        }
+        if ($dt === false) {
+            $dt = new DateTimeImmutable($s, $from);
+        }
+
+        return $dt->setTimezone($to)->format('Y-m-d H:i:s');
+    } catch (Throwable) {
+        return htmlspecialchars($s, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
 }
 
 function vehicleAgeRu(?string $code): string
@@ -260,6 +304,16 @@ function telegramApiPost(string $botToken, string $method, array $params): array
     return is_array($decoded) ? $decoded : ['ok' => false, 'description' => 'Некорректный JSON'];
 }
 
+telegramApiPost($botToken, 'setMyCommands', [
+    'commands' => json_encode([
+        ['command' => 'start', 'description' => 'Приветствие и кнопки меню'],
+        ['command' => 'leads', 'description' => 'Заявки с сайта'],
+        ['command' => 'lead', 'description' => 'Заявка по номеру (напр. /lead 12)'],
+        ['command' => 'last', 'description' => 'Последний расчёт в логе'],
+        ['command' => 'id', 'description' => 'Расчёт по ID из лога'],
+    ], JSON_UNESCAPED_UNICODE),
+]);
+
 function truncatePlain(string $text, int $maxLen): string
 {
     if (mb_strlen($text, 'UTF-8') <= $maxLen) {
@@ -269,16 +323,37 @@ function truncatePlain(string $text, int $maxLen): string
     return mb_substr($text, 0, $maxLen - 1, 'UTF-8') . '…';
 }
 
-function sendPlain(string $botToken, int $chatId, string $text): void
+function replyKeyboardMarkupJson(): string
+{
+    return json_encode([
+        'keyboard' => [
+            [['text' => MENU_LEADS]],
+            [
+                ['text' => MENU_HELP],
+                ['text' => MENU_LAST],
+            ],
+        ],
+        'resize_keyboard' => true,
+        'is_persistent' => true,
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+function sendPlain(string $botToken, int $chatId, string $text, bool $withReplyMenu = true): void
 {
     if (mb_strlen($text, 'UTF-8') > 4000) {
         $text = mb_substr($text, 0, 4000, 'UTF-8') . "\n\n(сообщение обрезано)";
     }
 
-    telegramApiPost($botToken, 'sendMessage', [
+    $params = [
         'chat_id' => (string) $chatId,
         'text' => $text,
-    ]);
+    ];
+
+    if ($withReplyMenu) {
+        $params['reply_markup'] = replyKeyboardMarkupJson();
+    }
+
+    telegramApiPost($botToken, 'sendMessage', $params);
 }
 
 /**
@@ -427,7 +502,7 @@ function buildLeadsView(PDO &$pdo, int $offset): array
 
     foreach ($rows as $row) {
         $id = (int) $row['id'];
-        $when = tgEsc((string) ($row['created_at'] ?? ''));
+        $when = tgEsc(formatDatetimeIrkutsk(isset($row['created_at']) ? (string) $row['created_at'] : null));
         $name = trim((string) ($row['name'] ?? ''));
         $nameDisp = $name !== '' ? tgEsc($name) : 'без имени';
         $phone = tgEsc((string) ($row['phone'] ?? ''));
@@ -476,7 +551,7 @@ function buildLeadDetailHtml($row): string
     }
 
     $id = (int) $row['id'];
-    $when = tgEsc((string) ($row['created_at'] ?? ''));
+    $when = tgEsc(formatDatetimeIrkutsk(isset($row['created_at']) ? (string) $row['created_at'] : null));
     $name = trim((string) ($row['name'] ?? ''));
     $phone = tgEsc((string) ($row['phone'] ?? ''));
     $cm = contactMethodRu((string) ($row['contact_method'] ?? 'phone'));
@@ -492,7 +567,7 @@ function buildLeadDetailHtml($row): string
 
     $lines = [];
     $lines[] = "<b>Заявка №{$id}</b>";
-    $lines[] = '📆 ' . $when;
+    $lines[] = '📆 ' . $when . ' · Иркутск';
     $lines[] = '';
     $lines[] = '<b>Контакт</b>';
     $lines[] = 'Имя: ' . ($name !== '' ? tgEsc($name) : '—');
@@ -543,7 +618,7 @@ function handleLastCommand(PDO &$pdo): ?string
             $outputsText = is_array($outputs) ? formatShortJson($outputs) : '[не удалось разобрать JSON]';
 
             $text = "Последний расчёт #" . (int) $row['id'] . "\n";
-            $text .= 'Создан: ' . (string) $row['created_at'] . "\n\n";
+            $text .= 'Создан (Иркутск): ' . formatDatetimeIrkutsk((string) $row['created_at']) . "\n\n";
             $text .= "Входные данные:\n";
             $text .= $inputsText . "\n\n";
             $text .= "Результаты:\n";
@@ -593,7 +668,7 @@ function handleIdCommand(PDO &$pdo, int $id): ?string
             $outputsText = is_array($outputs) ? formatShortJson($outputs) : '[не удалось разобрать JSON]';
 
             $text = "Расчёт #" . (int) $row['id'] . "\n";
-            $text .= 'Создан: ' . (string) $row['created_at'] . "\n\n";
+            $text .= 'Создан (Иркутск): ' . formatDatetimeIrkutsk((string) $row['created_at']) . "\n\n";
             $text .= "Входные данные:\n";
             $text .= $inputsText . "\n\n";
             $text .= "Результаты:\n";
@@ -621,14 +696,21 @@ function handleIdCommand(PDO &$pdo, int $id): ?string
 function helpText(): string
 {
     return <<<TXT
-Команды:
-/leads — заявки с сайта (список и кнопки)
-/lead N — полная карточка заявки № N
+Кнопки снизу экрана — основной способ: Заявки, Справка, Последний расчёт.
+
+Команды (список также в меню «☰» у поля ввода):
+/leads — заявки с сайта
+/lead N — карточка заявки № N
 /last — последний технический расчёт (calculation_log)
 /id N — расчёт по ID (calculation_log)
 
-Подсказка: откройте /leads и нажимайте «Открыть» под заявкой.
+В списке заявок нажимайте «Открыть №…» для подробностей.
 TXT;
+}
+
+function welcomeWithMenuText(): string
+{
+    return "Выберите действие кнопками под полем ввода или командой из меню «☰».\n\n" . helpText();
 }
 
 // ---- Основной цикл long polling ----
@@ -749,9 +831,22 @@ while (true) {
             continue;
         }
 
+        if ($text === MENU_LEADS) {
+            $text = '/leads';
+        } elseif ($text === MENU_HELP) {
+            $text = '/help';
+        } elseif ($text === MENU_LAST) {
+            $text = '/last';
+        }
+
         $cmd = strtolower(explode(' ', $text, 2)[0]);
 
-        if ($cmd === '/start' || $cmd === '/help') {
+        if ($cmd === '/start') {
+            sendPlain($botToken, $chatId, welcomeWithMenuText());
+            continue;
+        }
+
+        if ($cmd === '/help') {
             sendPlain($botToken, $chatId, helpText());
             continue;
         }

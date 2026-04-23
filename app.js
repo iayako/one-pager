@@ -960,11 +960,54 @@ function setLeadStatus(message, kind = "") {
   if (kind === "error") el.classList.add("lead-form__status--error");
 }
 
-function normalizePhone(value) {
-  const src = String(value || "").trim();
-  const plus = src.startsWith("+") ? "+" : "";
-  const digits = src.replace(/\D/g, "");
-  return plus + digits;
+/**
+ * До 11 цифр в формате РФ: код страны 7.
+ * 8… → 7…; набор «как с мобильного» (начинается с 9) → автоматически добавляется 7.
+ */
+function ruPhoneDigits(value) {
+  let d = String(value || "").replace(/\D/g, "");
+  if (d.startsWith("8")) {
+    d = "7" + d.slice(1);
+  }
+  if (d.length >= 1 && !d.startsWith("7") && d.startsWith("9")) {
+    d = "7" + d;
+  }
+  return d.slice(0, 11);
+}
+
+/** Отображение: +7 (XXX) XXX-XX-XX */
+function formatRuPhoneDisplay(digits) {
+  const d = ruPhoneDigits(digits);
+  if (!d) {
+    return "";
+  }
+  if (!d.startsWith("7")) {
+    return "+" + d;
+  }
+  const rest = d.slice(1);
+  let out = "+7";
+  if (rest.length === 0) {
+    return out;
+  }
+  out += " (";
+  out += rest.slice(0, Math.min(3, rest.length));
+  if (rest.length >= 3) {
+    out += ")";
+  }
+  if (rest.length > 3) {
+    out += " " + rest.slice(3, Math.min(6, rest.length));
+  }
+  if (rest.length > 6) {
+    out += "-" + rest.slice(6, Math.min(8, rest.length));
+  }
+  if (rest.length > 8) {
+    out += "-" + rest.slice(8, 10);
+  }
+  return out;
+}
+
+function isValidRuPhone11(digits) {
+  return /^7\d{10}$/.test(digits);
 }
 
 function initLeadForm() {
@@ -978,13 +1021,43 @@ function initLeadForm() {
   const methodEl = document.getElementById("lead-contact-method");
   const commentEl = document.getElementById("lead-comment");
 
+  if (phoneEl instanceof HTMLInputElement) {
+    phoneEl.setAttribute("inputmode", "tel");
+    phoneEl.setAttribute("autocomplete", "tel");
+
+    phoneEl.addEventListener("input", () => {
+      const formatted = formatRuPhoneDisplay(phoneEl.value);
+      if (formatted !== phoneEl.value) {
+        phoneEl.value = formatted;
+      }
+      phoneEl.classList.remove("lead-form__input--invalid");
+    });
+
+    phoneEl.addEventListener("blur", () => {
+      const d = ruPhoneDigits(phoneEl.value);
+      if (d.length > 0 && d.length < 11) {
+        phoneEl.classList.add("lead-form__input--invalid");
+      }
+    });
+
+    phoneEl.addEventListener("focus", () => {
+      phoneEl.classList.remove("lead-form__input--invalid");
+    });
+  }
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!(phoneEl instanceof HTMLInputElement) || !(consentEl instanceof HTMLInputElement)) return;
 
-    const phoneNorm = normalizePhone(phoneEl.value);
-    if (!phoneNorm || phoneNorm.replace(/\D/g, "").length < 11) {
-      setLeadStatus("Укажите корректный номер телефона.", "error");
+    const digits = ruPhoneDigits(phoneEl.value);
+    const phoneNorm = digits.length === 11 ? "+" + digits : "";
+
+    if (!isValidRuPhone11(digits)) {
+      setLeadStatus(
+        "Введите российский номер полностью: +7 и 10 цифр (например +7 (900) 123-45-67).",
+        "error"
+      );
+      phoneEl.classList.add("lead-form__input--invalid");
       phoneEl.focus();
       return;
     }
@@ -1020,6 +1093,9 @@ function initLeadForm() {
       }
       setLeadStatus("Заявка отправлена. Мы свяжемся с вами в ближайшее время.", "ok");
       form.reset();
+      if (phoneEl instanceof HTMLInputElement) {
+        phoneEl.classList.remove("lead-form__input--invalid");
+      }
     } catch {
       setLeadStatus("Ошибка сети. Попробуйте ещё раз.", "error");
     } finally {
