@@ -214,30 +214,75 @@ function fetch_cbr_xml(string $url): array
     return [$body];
 }
 
-[$body] = fetch_cbr_xml($url);
+/**
+ * Fallback-парсинг XML без simplexml.
+ * Используется, если расширение SimpleXML недоступно на сервере.
+ */
+function parse_cbr_eur_from_xml_fallback(string $body): ?array
+{
+    if (!preg_match('/<ValCurs\b[^>]*\bDate="([^"]+)"/ui', $body, $dateMatch)) {
+        return null;
+    }
+    $cbrDate = trim($dateMatch[1]);
 
-$xml = @simplexml_load_string($body);
-if ($xml === false) {
-    json_fail(502, 'Не удалось разобрать ответ ЦБ');
+    $eurNominal = null;
+    $eurValue = null;
+    if (preg_match_all('/<Valute\b[^>]*>(.*?)<\/Valute>/uis', $body, $blocks)) {
+        foreach ($blocks[1] as $block) {
+            if (!preg_match('/<CharCode>\s*EUR\s*<\/CharCode>/ui', $block)) {
+                continue;
+            }
+            if (preg_match('/<Nominal>\s*(\d+)\s*<\/Nominal>/ui', $block, $n)) {
+                $eurNominal = max(1, (int) $n[1]);
+            }
+            if (preg_match('/<Value>\s*([0-9]+(?:,[0-9]+)?)\s*<\/Value>/ui', $block, $v)) {
+                $eurValue = (float) str_replace(',', '.', $v[1]);
+            }
+            break;
+        }
+    }
+
+    if ($eurNominal === null || $eurValue === null || $eurValue <= 0) {
+        return null;
+    }
+
+    return [
+        'rubPerEur' => $eurValue / $eurNominal,
+        'nominal' => $eurNominal,
+        'cbrDate' => $cbrDate,
+    ];
 }
+
+[$body] = fetch_cbr_xml($url);
 
 $rubPerEur = null;
 $nominal = 1;
+$cbrDate = '';
 
-foreach ($xml->Valute as $v) {
-    if ((string) $v->CharCode === 'EUR') {
-        $nominal = max(1, (int) $v->Nominal);
-        $valueStr = str_replace(',', '.', (string) $v->Value);
-        $rubPerEur = (float) $valueStr / $nominal;
-        break;
+if (function_exists('simplexml_load_string')) {
+    $xml = @simplexml_load_string($body);
+    if ($xml !== false) {
+        foreach ($xml->Valute as $v) {
+            if ((string) $v->CharCode === 'EUR') {
+                $nominal = max(1, (int) $v->Nominal);
+                $valueStr = str_replace(',', '.', (string) $v->Value);
+                $rubPerEur = (float) $valueStr / $nominal;
+                break;
+            }
+        }
+        $cbrDate = isset($xml['Date']) ? (string) $xml['Date'] : '';
     }
 }
 
 if ($rubPerEur === null || !is_finite($rubPerEur) || $rubPerEur <= 0) {
-    json_fail(502, 'В курсах ЦБ на дату не найдена пара EUR');
+    $parsed = parse_cbr_eur_from_xml_fallback($body);
+    if ($parsed === null) {
+        json_fail(502, 'Не удалось разобрать ответ ЦБ (SimpleXML недоступен и fallback-парсинг не сработал)');
+    }
+    $rubPerEur = (float) $parsed['rubPerEur'];
+    $nominal = (int) $parsed['nominal'];
+    $cbrDate = (string) $parsed['cbrDate'];
 }
-
-$cbrDate = isset($xml['Date']) ? (string) $xml['Date'] : '';
 
 $requestedDate = $dateParam !== '' ? $dt->format('Y-m-d') : '';
 if ($requestedDate === '' && $cbrDate !== '') {
