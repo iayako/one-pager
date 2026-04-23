@@ -613,13 +613,29 @@ function deriveRubPerYenIfPossible() {
 /** Макс. возраст снимка из cron (api/rates_snapshot.php), сек.; дальше — запрос к живым API */
 const RATES_SNAPSHOT_MAX_AGE_SEC = 7200;
 
-async function initRatesAuto() {
+/** Опрос курсов без перезагрузки страницы (чаще интервала cron — подхват нового снимка). */
+const RATES_POLL_INTERVAL_MS = 90 * 1000;
+
+let ratesRefreshInFlight = false;
+
+/**
+ * @param {{ resetDatePlaceholder?: boolean }} opts — при первой загрузке сбрасываем «Актуален на» в —; при опросе не трогаем.
+ */
+async function refreshRatesAuto(opts = {}) {
+  const { resetDatePlaceholder = false } = opts;
+  if (ratesRefreshInFlight) {
+    return;
+  }
+  ratesRefreshInFlight = true;
+  try {
   const now = new Date();
   const commonActualLabel = formatInstantRuWithTimeZone(now);
   const todayIso = formatIsoLocalDate(now);
   const dateSuffix = todayIso ? `?date=${encodeURIComponent(todayIso)}` : "";
   const requestNonce = `ts=${Date.now()}`;
-  setRateDateText("rate-date-common", "—");
+  if (resetDatePlaceholder) {
+    setRateDateText("rate-date-common", "—");
+  }
 
   const inputYenPerUsd = document.getElementById("yen-per-usd");
   const inputRubPerUsd = document.getElementById("rub-per-usd");
@@ -719,6 +735,19 @@ async function initRatesAuto() {
 
   updateRatesUIFromInputs();
   updateProgressiveSteps();
+  } finally {
+    ratesRefreshInFlight = false;
+  }
+}
+
+function initRatesAuto() {
+  refreshRatesAuto({ resetDatePlaceholder: true }).catch(() => {});
+  window.setInterval(() => {
+    if (document.visibilityState === "hidden") {
+      return;
+    }
+    refreshRatesAuto({ resetDatePlaceholder: false }).catch(() => {});
+  }, RATES_POLL_INTERVAL_MS);
 }
 
 function computeCalculation(data) {

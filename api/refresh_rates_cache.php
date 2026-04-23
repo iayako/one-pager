@@ -3,9 +3,13 @@ declare(strict_types=1);
 
 /**
  * Обновляет локальный снимок курсов для api/rates_snapshot.php.
- * Запуск по cron (рекомендуется от имени пользователя веб-сервера):
+ * Запуск по cron (от пользователя www-data):
  *
  *   sudo -u www-data php /var/www/one-pager/api/refresh_rates_cache.php https://uus-avto.ru
+ *
+ * Лог cron лучше писать в каталог сайта (www-data может не иметь прав на /var/log/):
+ *
+ *   */15 * * * * /usr/bin/php .../refresh_rates_cache.php https://example.ru >> .../api/cache/cron.log 2>&1
  *
  * Базовый URL — первый аргумент или переменная окружения RATES_BASE_URL.
  * На том же сервере можно передать https://uus-avto.ru или http://127.0.0.1
