@@ -102,12 +102,14 @@ function telegramApiRequest(string $botToken, string $method, array $params = []
 
     $raw = @file_get_contents($url, false, $context);
     if ($raw === false) {
-        return ['ok' => false];
+        $err = error_get_last();
+        $hint = is_array($err) && isset($err['message']) ? (string) $err['message'] : 'file_get_contents вернул false';
+        return ['ok' => false, 'description' => $hint];
     }
 
     $decoded = json_decode($raw, true);
     if (!is_array($decoded)) {
-        return ['ok' => false];
+        return ['ok' => false, 'description' => 'Некорректный JSON от Telegram API'];
     }
 
     return $decoded;
@@ -292,7 +294,12 @@ while (true) {
     ]);
 
     if (!($response['ok'] ?? false)) {
-        fwrite(STDERR, "Ошибка при запросе getUpdates, жду 5 секунд...\n");
+        $detail = $response['description'] ?? '';
+        if ($detail !== '') {
+            fwrite(STDERR, "Ошибка getUpdates: {$detail}. Жду 5 секунд...\n");
+        } else {
+            fwrite(STDERR, 'Ошибка getUpdates: ' . json_encode($response, JSON_UNESCAPED_UNICODE) . ". Жду 5 секунд...\n");
+        }
         sleep(5);
         continue;
     }
