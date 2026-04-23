@@ -17,10 +17,9 @@ declare(strict_types=1);
  * (если nginx отдаёт сайт на localhost с нужным Host).
  *
  * Права на каталог кэша (иначе «Permission denied» при записи *.tmp / rates_snapshot.json):
- *   После деплоя GitHub Actions вызывается scripts/fix-cache-perms.sh (нужен sudo без пароля для пользователя деплоя).
- *   Вручную на сервере:
- *   sudo bash /var/www/one-pager/scripts/fix-cache-perms.sh
- *   Или по шагам: mkdir → chown www-data:www-data → chmod 775 на api/cache.
+ *   После деплоя вызывается scripts/fix-cache-perms.sh без sudo; пользователь деплоя должен быть в группе www-data:
+ *   sudo usermod -aG www-data deploy
+ *   Либо один раз вручную: sudo chown www-data:www-data .../api/cache && sudo chmod 775 ...
  */
 
 if (PHP_SAPI !== 'cli') {
