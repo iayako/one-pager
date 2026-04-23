@@ -489,9 +489,15 @@ function setRateText(id, value) {
   if (el) el.textContent = value;
 }
 
+function normalizeRateDateLabel(dateLabel) {
+  const raw = String(dateLabel || "").trim();
+  if (!raw || raw === "—") return "—";
+  return raw.replace(/^актуально\s+на[:\s]*/i, "").trim() || "—";
+}
+
 function setRateDateText(id, dateLabel) {
   const el = document.getElementById(id);
-  if (el) el.textContent = `Актуален на: ${dateLabel || "—"}`;
+  if (el) el.textContent = `Актуален на: ${normalizeRateDateLabel(dateLabel)}`;
 }
 
 function updateRatesUIFromInputs() {
@@ -519,6 +525,30 @@ function formatLocalDate(dt) {
   }
 }
 
+function formatLocalDateTime(dt) {
+  try {
+    const d = dt instanceof Date ? dt : new Date(dt);
+    return d.toLocaleString("ru-RU", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
+function formatIsoLocalDate(dt) {
+  const d = dt instanceof Date ? dt : new Date(dt);
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function deriveRubPerYenIfPossible() {
   const yenPerUsdEl = document.getElementById("yen-per-usd");
   const rubPerUsdEl = document.getElementById("rub-per-usd");
@@ -536,11 +566,10 @@ function deriveRubPerYenIfPossible() {
 
 async function initRatesAuto() {
   const now = new Date();
-  const nowDate = formatLocalDate(now) || "—";
-  setRateDateText("rate-date-rub-per-usd", "—");
-  setRateDateText("rate-date-yen-per-usd", "—");
-  setRateDateText("rate-date-rub-per-yen", "—");
-  setRateDateText("rate-date-rub-per-eur", "—");
+  const commonActualLabel = formatLocalDateTime(now) || formatLocalDate(now) || "—";
+  const todayIso = formatIsoLocalDate(now);
+  const dateSuffix = todayIso ? `?date=${encodeURIComponent(todayIso)}` : "";
+  setRateDateText("rate-date-common", "—");
 
   const inputYenPerUsd = document.getElementById("yen-per-usd");
   const inputRubPerUsd = document.getElementById("rub-per-usd");
@@ -548,7 +577,7 @@ async function initRatesAuto() {
   const inputRubPerEur = document.getElementById("rub-per-eur");
 
   const tasks = [
-    fetch(resolveAppUrl("api/khan_rates.php"), { cache: "no-store" })
+    fetch(resolveAppUrl(`api/khan_rates.php${dateSuffix}`), { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => ({ src: "Khan Bank", data }))
       .catch((e) => ({ src: "Khan Bank", error: e })),
@@ -556,26 +585,19 @@ async function initRatesAuto() {
       .then((r) => r.json())
       .then((data) => ({ src: "АТБ", data }))
       .catch((e) => ({ src: "АТБ", error: e })),
-    fetch(resolveAppUrl("api/cbr_eur.php"), { cache: "no-store" })
+    fetch(resolveAppUrl(`api/cbr_eur.php${dateSuffix}`), { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => ({ src: "ЦБ", data }))
       .catch((e) => ({ src: "ЦБ", error: e })),
   ];
 
   const results = await Promise.all(tasks);
-  let khanDateLabel = "";
-  let atbDateLabel = "";
-  let cbrDateLabel = "";
   let atbHasRubPerYen = false;
 
   for (const r of results) {
     if (r && r.data && r.data.ok) {
       if (r.src === "Khan Bank" && inputYenPerUsd && typeof r.data.yenPerUsd === "number") {
         inputYenPerUsd.value = String(r.data.yenPerUsd);
-        const khanDateRu = r.data.date ? isoDateToRu(r.data.date) : "";
-        if (khanDateRu) {
-          khanDateLabel = khanDateRu;
-        }
       }
       if (r.src === "АТБ" && inputRubPerUsd && typeof r.data.rubPerUsd === "number") {
         inputRubPerUsd.value = String(r.data.rubPerUsd);
@@ -583,15 +605,9 @@ async function initRatesAuto() {
           inputRubPerYen.value = String(r.data.rubPerYen);
           atbHasRubPerYen = true;
         }
-        const asOf = String(r.data.asOfText || "").trim();
-        atbDateLabel = asOf || nowDate;
       }
       if (r.src === "ЦБ" && inputRubPerEur && typeof r.data.rubPerEur === "number") {
         inputRubPerEur.value = String(r.data.rubPerEur);
-        const cbrDateRu = r.data.requestedDate ? isoDateToRu(r.data.requestedDate) : "";
-        if (cbrDateRu) {
-          cbrDateLabel = cbrDateRu;
-        }
       }
     }
   }
@@ -602,13 +618,7 @@ async function initRatesAuto() {
     // оставляем дефолт, но UI обновим
   }
 
-  setRateDateText("rate-date-yen-per-usd", khanDateLabel || "—");
-  setRateDateText("rate-date-rub-per-usd", atbDateLabel || "—");
-  setRateDateText("rate-date-rub-per-eur", cbrDateLabel || "—");
-  setRateDateText(
-    "rate-date-rub-per-yen",
-    derived ? (atbHasRubPerYen ? (atbDateLabel || nowDate) : (khanDateLabel || atbDateLabel || nowDate)) : "—"
-  );
+  setRateDateText("rate-date-common", derived ? commonActualLabel : "—");
 
   updateRatesUIFromInputs();
   updateProgressiveSteps();

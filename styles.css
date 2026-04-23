@@ -238,6 +238,13 @@ h1 {
   gap: 0.55rem;
 }
 
+.rates-meta {
+  margin: 0.55rem 0 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+  opacity: 0.9;
+}
+
 .rate {
   flex: 1 1 10.5rem;
   min-width: 10.5rem;
@@ -297,7 +304,9 @@ h1 {
   grid-column: 2 / -1;
   font-size: 0.69rem;
   color: var(--muted);
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
   opacity: 0.9;
 }
 

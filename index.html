@@ -30,10 +30,10 @@
         <input type="hidden" name="usdTrack" id="usd-track" value="2340" />
         <input type="hidden" name="rubInInvoice" id="rub-in-invoice" value="47800" />
         <input type="hidden" name="labRub" id="lab-rub" value="40000" />
-        <input type="hidden" name="yenPerUsd" id="yen-per-usd" value="161.4" />
-        <input type="hidden" name="rubPerUsd" id="rub-per-usd" value="80.99" />
-        <input type="hidden" name="rubPerYen" id="rub-per-yen" value="0.5299" />
-        <input type="hidden" name="rubPerEur" id="rub-per-eur" value="91.0034" />
+        <input type="hidden" name="yenPerUsd" id="yen-per-usd" value="" />
+        <input type="hidden" name="rubPerUsd" id="rub-per-usd" value="" />
+        <input type="hidden" name="rubPerYen" id="rub-per-yen" value="" />
+        <input type="hidden" name="rubPerEur" id="rub-per-eur" value="" />
       </div>
 
       <section class="panel panel--tight rates-panel">
@@ -43,27 +43,24 @@
             <span class="rate__icon rate__icon--usd" aria-hidden="true">USD</span>
             <span class="rate__label">₽ / $</span>
             <span class="rate__value" id="rate-rub-per-usd">—</span>
-            <span class="rate__date" id="rate-date-rub-per-usd">Актуален на: —</span>
           </div>
           <div class="rate" role="listitem">
             <span class="rate__icon rate__icon--jpy" aria-hidden="true">JPY</span>
             <span class="rate__label">¥ / $</span>
             <span class="rate__value" id="rate-yen-per-usd">—</span>
-            <span class="rate__date" id="rate-date-yen-per-usd">Актуален на: —</span>
           </div>
           <div class="rate" role="listitem">
             <span class="rate__icon rate__icon--jpy" aria-hidden="true">JPY</span>
             <span class="rate__label">₽ / ¥</span>
             <span class="rate__value" id="rate-rub-per-yen">—</span>
-            <span class="rate__date" id="rate-date-rub-per-yen">Актуален на: —</span>
           </div>
           <div class="rate" role="listitem">
             <span class="rate__icon rate__icon--eur" aria-hidden="true">EUR</span>
             <span class="rate__label">₽ / €</span>
             <span class="rate__value" id="rate-rub-per-eur">—</span>
-            <span class="rate__date" id="rate-date-rub-per-eur">Актуален на: —</span>
           </div>
         </div>
+        <p class="rates-meta" id="rate-date-common">Актуален на: —</p>
       </section>
 
       <section class="panel wizard" id="vehicle-wizard" aria-label="Данные об автомобиле">

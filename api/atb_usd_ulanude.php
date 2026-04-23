@@ -364,7 +364,13 @@ function extract_money_transfer_rates(string $html): array
     }
 
     $xp = new DOMXPath($dom);
-    $tab4 = $xp->query("//*[@id='currencyTab4']")->item(0);
+    $tab4 = $xp->query(
+        "//*[@id='currencyTab4' and contains(concat(' ', normalize-space(@class), ' '), ' currency-tabs__item ')][.//div[contains(concat(' ', normalize-space(@class), ' '), ' currency-table ')]]"
+    )->item(0);
+    if (!($tab4 instanceof DOMElement)) {
+        // fallback на случай изменений классов: любой currencyTab4, внутри которого есть строки таблицы
+        $tab4 = $xp->query("//*[@id='currencyTab4'][.//div[contains(concat(' ', normalize-space(@class), ' '), ' currency-table__tr ')]]")->item(0);
+    }
     if (!($tab4 instanceof DOMElement)) {
         return [null, null, null, null];
     }
