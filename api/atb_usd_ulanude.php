@@ -299,33 +299,51 @@ function extract_hidden_rate(string $html, string $name): ?float
     return normalize_number($m[1]);
 }
 
+function extract_number_from_text(string $text): ?float
+{
+    if (preg_match('/-?\d+(?:[.,]\d+)?/u', $text, $m)) {
+        return normalize_number($m[0]);
+    }
+    return null;
+}
+
 function parse_buy_value_from_row(DOMXPath $xp, DOMElement $row): ?float
 {
-    $tdNodes = $xp->query(".//div[contains(concat(' ', normalize-space(@class), ' '), ' currency-table__td ')]", $row);
+    // В таблице currencyTab4 первая ячейка с курсом после "валюта" — это "покупка".
+    // Так надежнее, чем искать русское слово "покупка" (может ломаться из-за кодировок).
+    $tdNodes = $xp->query(
+        ".//div[contains(concat(' ', normalize-space(@class), ' '), ' currency-table__td ') and " .
+        "not(contains(concat(' ', normalize-space(@class), ' '), ' currency-table__td--tr-name '))]",
+        $row
+    );
     if ($tdNodes === false) {
         return null;
     }
 
-    foreach ($tdNodes as $tdNode) {
-        if (!($tdNode instanceof DOMElement)) {
-            continue;
-        }
-        $headRaw = (string) $xp->evaluate("string(.//div[contains(concat(' ', normalize-space(@class), ' '), ' currency-table__head ')])", $tdNode);
-        $head = mb_strtolower(trim($headRaw));
-        if ($head !== 'покупка') {
-            continue;
-        }
-
-        $cellText = (string) $xp->evaluate("string(.)", $tdNode);
-        $cellText = preg_replace('/\s+/u', ' ', trim($cellText)) ?? '';
-        if ($cellText === '') {
-            return null;
-        }
-        $withoutHead = preg_replace('/^\s*покупка\s*/ui', '', $cellText) ?? $cellText;
-        return normalize_number($withoutHead);
+    $firstRateCell = $tdNodes->item(0);
+    if (!($firstRateCell instanceof DOMElement)) {
+        return null;
     }
 
-    return null;
+    $headText = (string) $xp->evaluate("string(.//div[contains(concat(' ', normalize-space(@class), ' '), ' currency-table__head ')])", $firstRateCell);
+    $fullText = (string) $xp->evaluate("string(.)", $firstRateCell);
+    $fullText = preg_replace('/\s+/u', ' ', trim($fullText)) ?? '';
+    if ($fullText === '') {
+        return null;
+    }
+
+    // Убираем заголовок ячейки (buy/purchase) и берём первое число.
+    $valueText = $fullText;
+    if ($headText !== '') {
+        $valueText = trim(str_replace($headText, '', $fullText));
+    }
+
+    $value = extract_number_from_text($valueText);
+    if ($value !== null) {
+        return $value;
+    }
+
+    return extract_number_from_text($fullText);
 }
 
 /**
