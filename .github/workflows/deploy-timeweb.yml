@@ -54,10 +54,39 @@ jobs:
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
             'bash /var/www/one-pager/scripts/fix-cache-perms.sh'
 
-      # Перезапуск long-polling бота после выкладки api/telegram_bot.php.
-      # На сервере: sudo visudo -f /etc/sudoers.d/deploy — строка NOPASSWD для systemctl (см. комментарий ниже).
+      # Перезапуск бота: в CI нет интерактивного sudo → обычный sudo не работает.
+      # Вариант A (рекомендуется): секрет VPS_TELEGRAM_RESTART_SSH_KEY — отдельный приватный ключ,
+      #   публичная часть у пользователя root в ~/.ssh/authorized_keys (или ограничение command="systemctl …").
+      # Вариант B: на сервере NOPASSWD для deploy:
+      #   sudo visudo -f /etc/sudoers.d/deploy
+      #   deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart one-pager-telegram-bot.service
       - name: Restart Telegram bot (systemd)
+        shell: bash
         run: |
-          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p ${{ secrets.VPS_PORT }} \
-            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            'sudo /usr/bin/systemctl restart one-pager-telegram-bot.service'
+          set -euo pipefail
+          PORT="${{ secrets.VPS_PORT }}"
+          HOST="${{ secrets.VPS_HOST }}"
+          DEPLOY_USER="${{ secrets.VPS_USER }}"
+          UNIT="one-pager-telegram-bot.service"
+
+          echo "${{ secrets.VPS_TELEGRAM_RESTART_SSH_KEY }}" | tr -d '\r' > ~/.ssh/telegram_restart_key
+          if ssh-keygen -y -f ~/.ssh/telegram_restart_key >/dev/null 2>&1; then
+            chmod 600 ~/.ssh/telegram_restart_key
+            ssh -i ~/.ssh/telegram_restart_key -o IdentitiesOnly=yes -p "$PORT" \
+              "root@${HOST}" \
+              "/usr/bin/systemctl restart ${UNIT}"
+            echo "Telegram bot restarted (key VPS_TELEGRAM_RESTART_SSH_KEY)."
+            rm -f ~/.ssh/telegram_restart_key
+            exit 0
+          fi
+          rm -f ~/.ssh/telegram_restart_key
+
+          if ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p "$PORT" \
+              "${DEPLOY_USER}@${HOST}" \
+              "sudo -n /usr/bin/systemctl restart ${UNIT}"; then
+            echo "Telegram bot restarted (sudo -n / NOPASSWD)."
+            exit 0
+          fi
+
+          echo "::error::Задайте секрет VPS_TELEGRAM_RESTART_SSH_KEY (ключ для root@VPS) или NOPASSWD для sudo -n systemctl restart — см. комментарий в deploy-timeweb.yml"
+          exit 1
