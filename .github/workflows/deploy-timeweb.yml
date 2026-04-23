@@ -34,11 +34,14 @@ jobs:
       - name: Deploy files to VPS via rsync
         run: |
           # Секреты не в Git (.gitignore). Без exclude rsync --delete удалит их на сервере.
-          rsync -az --delete \
+          # api/cache/* создаёт PHP/cron от www-data — не удалять и не пересобирать с CI (иначе permission denied).
+          rsync -az --delete -O \
             --exclude ".git/" \
             --exclude ".github/" \
             --exclude "tz/" \
             --exclude "api/config.php" \
             --exclude "api/telegram_config.php" \
+            --exclude "api/cache/*.json" \
+            --exclude "api/cache/*.log" \
             -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p ${{ secrets.VPS_PORT }}" \
             ./ "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/one-pager/"
