@@ -19,7 +19,6 @@ const LEADS_PAGE_SIZE = 5;
 /** Текст на reply-клавиатуре (должен совпадать с проверкой в обработчике). */
 const MENU_LEADS = '📋 Заявки';
 const MENU_HELP = 'ℹ️ Справка';
-const MENU_LAST = '🔧 Последний расчёт';
 
 /** Показ даты/времени в боте (заявки, расчёты). */
 const DISPLAY_TIMEZONE = 'Asia/Irkutsk';
@@ -328,10 +327,7 @@ function replyKeyboardMarkupJson(): string
     return json_encode([
         'keyboard' => [
             [['text' => MENU_LEADS]],
-            [
-                ['text' => MENU_HELP],
-                ['text' => MENU_LAST],
-            ],
+            [['text' => MENU_HELP]],
         ],
         'resize_keyboard' => true,
         'is_persistent' => true,
@@ -864,7 +860,7 @@ function handleIdCommand(PDO &$pdo, int $id): ?string
 function helpText(): string
 {
     return <<<TXT
-Кнопки снизу экрана — основной способ: Заявки, Справка, Последний расчёт.
+Кнопки снизу экрана — основной способ: Заявки и Справка.
 
 Команды (список также в меню «☰» у поля ввода):
 /leads — заявки с сайта
@@ -1016,8 +1012,6 @@ while (true) {
             $text = '/leads';
         } elseif ($text === MENU_HELP) {
             $text = '/help';
-        } elseif ($text === MENU_LAST) {
-            $text = '/last';
         }
 
         $cmd = strtolower(explode(' ', $text, 2)[0]);
