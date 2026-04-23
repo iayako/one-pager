@@ -9,7 +9,8 @@ declare(strict_types=1);
  *
  * Лог cron лучше писать в каталог сайта (www-data может не иметь прав на /var/log/):
  *
- *   */15 * * * * /usr/bin/php .../refresh_rates_cache.php https://example.ru >> .../api/cache/cron.log 2>&1
+ *   Пример строки crontab (каждые 15 минут — поле минут 0,15,30,45):
+ *   0,15,30,45 * * * * /usr/bin/php .../refresh_rates_cache.php https://example.ru >> .../api/cache/cron.log 2>&1
  *
  * Базовый URL — первый аргумент или переменная окружения RATES_BASE_URL.
  * На том же сервере можно передать https://uus-avto.ru или http://127.0.0.1
