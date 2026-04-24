@@ -110,6 +110,64 @@ function tgEsc(?string $s): string
 }
 
 /**
+ * Возвращает настройки прокси из env.
+ *
+ * Поддерживаются:
+ * - TELEGRAM_PROXY (приоритет)
+ * - HTTPS_PROXY / HTTP_PROXY
+ *
+ * Формат:
+ *   http://user:pass@host:port
+ *   socks5://user:pass@host:port
+ *   socks5h://user:pass@host:port
+ *
+ * @return array{proxy:string,proxy_type?:int,proxy_userpwd?:string}|null
+ */
+function telegramProxyOptionsFromEnv(): ?array
+{
+    $raw = trim((string) (
+        getenv('TELEGRAM_PROXY')
+        ?: getenv('HTTPS_PROXY')
+        ?: getenv('HTTP_PROXY')
+        ?: ''
+    ));
+    if ($raw === '') {
+        return null;
+    }
+
+    $parts = parse_url($raw);
+    if ($parts === false) {
+        return null;
+    }
+
+    $scheme = strtolower((string) ($parts['scheme'] ?? 'http'));
+    $host = (string) ($parts['host'] ?? '');
+    $port = isset($parts['port']) ? (int) $parts['port'] : 0;
+    if ($host === '' || $port <= 0) {
+        return null;
+    }
+
+    $proxy = $host . ':' . $port;
+    $opts = ['proxy' => $proxy];
+
+    if ($scheme === 'socks5') {
+        $opts['proxy_type'] = CURLPROXY_SOCKS5;
+    } elseif ($scheme === 'socks5h') {
+        $opts['proxy_type'] = CURLPROXY_SOCKS5_HOSTNAME;
+    } else {
+        $opts['proxy_type'] = CURLPROXY_HTTP;
+    }
+
+    $user = isset($parts['user']) ? urldecode((string) $parts['user']) : '';
+    $pass = isset($parts['pass']) ? urldecode((string) $parts['pass']) : '';
+    if ($user !== '' || $pass !== '') {
+        $opts['proxy_userpwd'] = $user . ':' . $pass;
+    }
+
+    return $opts;
+}
+
+/**
  * Строка из БД (Y-m-d H:i:s) → локальное время Иркутска для отображения в боте.
  */
 function formatDatetimeIrkutsk(?string $mysqlDatetime): string
@@ -213,15 +271,26 @@ function telegramApiRequest(string $botToken, string $method, array $params = []
     }
 
     if (function_exists('curl_init')) {
+        $proxy = telegramProxyOptionsFromEnv();
         $ch = curl_init($url);
-        curl_setopt_array($ch, [
+        $options = [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_CONNECTTIMEOUT => 20,
             CURLOPT_TIMEOUT => 70,
             CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
             CURLOPT_HTTPGET => true,
-        ]);
+        ];
+        if ($proxy !== null) {
+            $options[CURLOPT_PROXY] = $proxy['proxy'];
+            if (isset($proxy['proxy_type'])) {
+                $options[CURLOPT_PROXYTYPE] = $proxy['proxy_type'];
+            }
+            if (isset($proxy['proxy_userpwd'])) {
+                $options[CURLOPT_PROXYUSERPWD] = $proxy['proxy_userpwd'];
+            }
+        }
+        curl_setopt_array($ch, $options);
 
         $raw = curl_exec($ch);
         $curlErr = curl_error($ch);
@@ -280,15 +349,26 @@ function telegramApiPost(string $botToken, string $method, array $params): array
         return ['ok' => false, 'description' => 'Нужно расширение php-curl'];
     }
 
+    $proxy = telegramProxyOptionsFromEnv();
     $ch = curl_init($url);
-    curl_setopt_array($ch, [
+    $options = [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => $flat,
         CURLOPT_CONNECTTIMEOUT => 20,
         CURLOPT_TIMEOUT => 60,
         CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
-    ]);
+    ];
+    if ($proxy !== null) {
+        $options[CURLOPT_PROXY] = $proxy['proxy'];
+        if (isset($proxy['proxy_type'])) {
+            $options[CURLOPT_PROXYTYPE] = $proxy['proxy_type'];
+        }
+        if (isset($proxy['proxy_userpwd'])) {
+            $options[CURLOPT_PROXYUSERPWD] = $proxy['proxy_userpwd'];
+        }
+    }
+    curl_setopt_array($ch, $options);
 
     $raw = curl_exec($ch);
     $curlErr = curl_error($ch);
