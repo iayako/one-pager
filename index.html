@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Калькулятор себестоимости авто</title>
+  <title>Калькулятор УУС АВТО</title>
+  <link rel="icon" type="image/png" href="./assets/favicon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
@@ -178,7 +179,10 @@
               <dd id="out-customs-train">—</dd>
             </div>
             <div class="result-row">
-              <dt>ЭПТС, ₽</dt>
+              <dt>
+                ЭПТС и СБКТС, ₽
+                <span class="result-row__note">Гибридные авто обязательны к прохождению лаборатории в г. Кяхта</span>
+              </dt>
               <dd id="out-lab-train">—</dd>
             </div>
             <div class="result-row result-row--accent result-row--total">
@@ -219,7 +223,10 @@
               <dd id="out-customs-track">—</dd>
             </div>
             <div class="result-row">
-              <dt>ЭПТС, ₽</dt>
+              <dt>
+                ЭПТС и СБКТС, ₽
+                <span class="result-row__note">Гибридные авто обязательны к прохождению лаборатории в г. Кяхта</span>
+              </dt>
               <dd id="out-lab-track">—</dd>
             </div>
             <div class="result-row result-row--accent result-row--total">
@@ -243,7 +250,6 @@
           <label class="field">
             <span class="field__label">Телефон</span>
             <input type="tel" id="lead-phone" name="phone" required maxlength="25" placeholder="+7 (900) 123-45-67" />
-            <span class="field__hint">Российский номер: можно начать с +7, с 8 или с 9 (как в телефоне).</span>
           </label>
           <label class="field">
             <span class="field__label">Удобный способ связи</span>
@@ -274,13 +280,13 @@
         <div class="contacts-card__main">
           <h2 class="contacts-card__title">Связаться с нами</h2>
           <p class="contacts-card__hint">UU SERVICE AUTO, Улан-Удэ</p>
-          <a class="contacts-card__phone" href="tel:+79021600654">
+          <a class="contacts-card__phone" href="tel:+79085913000">
             <span class="contacts-card__icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none">
                 <path d="M6.5 3.2c.5-.5 1.3-.6 1.9-.1l2.2 1.7c.6.5.8 1.3.5 2l-.8 2.1a1 1 0 0 0 .2 1l3.2 3.2a1 1 0 0 0 1 .2l2.1-.8c.7-.3 1.5-.1 2 .5l1.7 2.2c.5.6.4 1.4-.1 1.9l-1.2 1.2c-.8.8-2 1.1-3.1.8a20.4 20.4 0 0 1-10-6 20.4 20.4 0 0 1-6-10c-.3-1.1 0-2.3.8-3.1L6.5 3.2Z" stroke="currentColor" stroke-width="1.5"/>
               </svg>
             </span>
-            +7 902 160-06-54
+            +7 908 591 3000
           </a>
           <a
             class="contacts-card__address"
@@ -318,7 +324,7 @@
           </a>
           <a
             class="contacts-card__btn"
-            href="https://api.whatsapp.com/send/?phone=79021600654&text=%D0%97%D0%B4%D1%80%D0%B0%D0%B2%D1%81%D1%82%D0%B2%D1%83%D0%B9%D1%82%D0%B5%21%0A%0A%D0%9F%D0%B8%D1%88%D1%83+%D0%B8%D0%B7+%D0%BF%D1%80%D0%B8%D0%BB%D0%BE%D0%B6%D0%B5%D0%BD%D0%B8%D1%8F+2%D0%93%D0%98%D0%A1.%0A%0A&type=phone_number&app_absent=0"
+            href="https://api.whatsapp.com/send/?phone=79085913000&text=%D0%97%D0%B4%D1%80%D0%B0%D0%B2%D1%81%D1%82%D0%B2%D1%83%D0%B9%D1%82%D0%B5%21%0A%0A%D0%9F%D0%B8%D1%88%D1%83+%D0%B8%D0%B7+%D0%BF%D1%80%D0%B8%D0%BB%D0%BE%D0%B6%D0%B5%D0%BD%D0%B8%D1%8F+2%D0%93%D0%98%D0%A1.%0A%0A&type=phone_number&app_absent=0"
             target="_blank"
             rel="noopener noreferrer"
           >

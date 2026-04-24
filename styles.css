@@ -712,6 +712,15 @@ input::placeholder {
   min-width: 0;
 }
 
+.result-row__note {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--muted);
+  opacity: 0.9;
+}
+
 .result-row dd {
   margin: 0;
   font-size: 0.9rem;

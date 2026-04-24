@@ -6,8 +6,8 @@ declare(strict_types=1);
  *
  * Основной источник:
  * блок "Курсы валют" -> вкладка "для денежных переводов" (currencyTab4):
- * - USD "покупка" -> ₽ за 1 $
- * - JPY "покупка" (обычно "за 100¥") -> ₽ за 1 ¥
+ * - USD "продажа" -> ₽ за 1 $
+ * - JPY "продажа" (обычно "за 100¥") -> ₽ за 1 ¥
  * - строка "Актуально на ..."
  *
  * Ответ: { ok, cityId, cityName, rubPerUsd, rubPerYen, asOfText, ... }
@@ -309,10 +309,10 @@ function extract_number_from_text(string $text): ?float
     return null;
 }
 
-function parse_buy_value_from_row(DOMXPath $xp, DOMElement $row): ?float
+function parse_sell_value_from_row(DOMXPath $xp, DOMElement $row): ?float
 {
-    // В таблице currencyTab4 первая ячейка с курсом после "валюта" — это "покупка".
-    // Так надежнее, чем искать русское слово "покупка" (может ломаться из-за кодировок).
+    // В таблице currencyTab4 вторая ячейка с курсом после "валюта" — это "продажа".
+    // Так надежнее, чем искать русское слово "продажа" (может ломаться из-за кодировок).
     $tdNodes = $xp->query(
         ".//div[contains(concat(' ', normalize-space(@class), ' '), ' currency-table__td ') and " .
         "not(contains(concat(' ', normalize-space(@class), ' '), ' currency-table__td--tr-name '))]",
@@ -322,19 +322,19 @@ function parse_buy_value_from_row(DOMXPath $xp, DOMElement $row): ?float
         return null;
     }
 
-    $firstRateCell = $tdNodes->item(0);
-    if (!($firstRateCell instanceof DOMElement)) {
+    $sellRateCell = $tdNodes->item(1);
+    if (!($sellRateCell instanceof DOMElement)) {
         return null;
     }
 
-    $headText = (string) $xp->evaluate("string(.//div[contains(concat(' ', normalize-space(@class), ' '), ' currency-table__head ')])", $firstRateCell);
-    $fullText = (string) $xp->evaluate("string(.)", $firstRateCell);
+    $headText = (string) $xp->evaluate("string(.//div[contains(concat(' ', normalize-space(@class), ' '), ' currency-table__head ')])", $sellRateCell);
+    $fullText = (string) $xp->evaluate("string(.)", $sellRateCell);
     $fullText = preg_replace('/\s+/u', ' ', trim($fullText)) ?? '';
     if ($fullText === '') {
         return null;
     }
 
-    // Убираем заголовок ячейки (buy/purchase) и берём первое число.
+    // Убираем заголовок ячейки (sell/sale) и берём первое число.
     $valueText = $fullText;
     if ($headText !== '') {
         $valueText = trim(str_replace($headText, '', $fullText));
@@ -350,8 +350,8 @@ function parse_buy_value_from_row(DOMXPath $xp, DOMElement $row): ?float
 
 /**
  * Парсим блок "для денежных переводов" (currencyTab4):
- * - USD покупка -> ₽ за 1 $
- * - JPY покупка -> ₽ за N ¥ (обычно N=100), затем переводим в ₽ за 1 ¥
+ * - USD продажа -> ₽ за 1 $
+ * - JPY продажа -> ₽ за N ¥ (обычно N=100), затем переводим в ₽ за 1 ¥
  * - "Актуально на ..." из footer.
  */
 function extract_money_transfer_rates(string $html): array
@@ -397,13 +397,13 @@ function extract_money_transfer_rates(string $html): array
             continue;
         }
 
-        $buy = parse_buy_value_from_row($xp, $rowNode);
-        if ($buy === null || $buy <= 0) {
+        $sell = parse_sell_value_from_row($xp, $rowNode);
+        if ($sell === null || $sell <= 0) {
             continue;
         }
 
         if ($code === 'USD') {
-            $rubPerUsd = $buy;
+            $rubPerUsd = $sell;
             continue;
         }
 
@@ -415,7 +415,7 @@ function extract_money_transfer_rates(string $html): array
                 $scale = max(1.0, (float) $m[1]);
             }
             $jpyScale = $scale;
-            $rubPerYen = $buy / $scale;
+            $rubPerYen = $sell / $scale;
         }
     }
 
