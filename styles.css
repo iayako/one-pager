@@ -115,6 +115,11 @@ h1 {
   transform: scale(0.98);
 }
 
+.btn--sm {
+  font-size: 0.82rem;
+  padding: 0.45rem 0.75rem;
+}
+
 .btn--primary {
   background: linear-gradient(165deg, var(--primary) 0%, #4168d9 100%);
   color: #fff;
