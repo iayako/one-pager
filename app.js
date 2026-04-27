@@ -154,6 +154,7 @@ const APP_SCRIPT_URL = (() => {
 
 let latestCalculationSnapshot = null;
 let latestCalculationId = null;
+let vehicleCatalog = [];
 
 function formatYen(n) {
   return `${formatInt(n)} ¥`;
@@ -606,6 +607,261 @@ function setSelectedAuction(name, fobYen) {
   fobDisplay.textContent = `FOB: ${formatInt(fobYen)} ¥`;
 }
 
+function mapCatalogEngineTypeToForm(value) {
+  const raw = String(value || "").toLowerCase();
+  if (raw.includes("hybrid")) return "hybrid";
+  if (raw.includes("gasoline")) return "gasoline";
+  return "";
+}
+
+function mapVehicleAgeByYear(modelYear) {
+  const year = Number(modelYear);
+  if (!Number.isFinite(year) || year <= 0) return "";
+  const nowYear = new Date().getFullYear();
+  const age = nowYear - year;
+  if (age < 3) return "under3";
+  if (age <= 5) return "3to5";
+  return "over5";
+}
+
+function updateVehiclePresetMeta(text) {
+  const meta = document.getElementById("vehicle-preset-meta");
+  if (meta) meta.textContent = text;
+}
+
+function applyVehiclePresetById(id) {
+  const selected = vehicleCatalog.find((item) => String(item.id) === String(id));
+  if (!selected) return;
+
+  const vehicleAgeEl = document.getElementById("vehicle-age");
+  const engineTypeEl = document.getElementById("engine-type");
+  const engineCcEl = document.getElementById("engine-cc");
+  const engineHpEl = document.getElementById("engine-hp");
+
+  if (vehicleAgeEl instanceof HTMLSelectElement) {
+    const ageCode = mapVehicleAgeByYear(selected.model_year);
+    if (ageCode) vehicleAgeEl.value = ageCode;
+  }
+
+  if (engineTypeEl instanceof HTMLSelectElement) {
+    const mappedType = mapCatalogEngineTypeToForm(selected.engine_type);
+    if (mappedType) engineTypeEl.value = mappedType;
+  }
+
+  if (engineCcEl instanceof HTMLInputElement) {
+    const displacementL = Number(selected.engine_displacement_l);
+    if (Number.isFinite(displacementL) && displacementL > 0) {
+      engineCcEl.value = String(Math.round(displacementL * 1000));
+    }
+  }
+
+  if (engineHpEl instanceof HTMLInputElement) {
+    const hp = Number(selected.engine_hp);
+    if (Number.isFinite(hp) && hp > 0) {
+      engineHpEl.value = String(Math.round(hp));
+    }
+  }
+
+  const make = String(selected.make || "").trim();
+  const model = String(selected.model || "").trim();
+  const year = Number(selected.model_year);
+  const yearLabel = Number.isFinite(year) && year > 0 ? year : "—";
+  updateVehiclePresetMeta(`Выбрано: ${make} ${model}, ${yearLabel}. Параметры двигателя и возраст подставлены автоматически.`);
+  updateProgressiveSteps();
+}
+
+function sortVehicleCatalog(items) {
+  return [...items].sort((a, b) => {
+    const aName = `${a.make || ""} ${a.model || ""} ${a.model_year || ""}`.toLowerCase();
+    const bName = `${b.make || ""} ${b.model || ""} ${b.model_year || ""}`.toLowerCase();
+    return aName.localeCompare(bName, "ru");
+  });
+}
+
+function buildQuickVehicleDatalist(items) {
+  const datalist = document.getElementById("vehicle-preset-list");
+  if (!(datalist instanceof HTMLDataListElement)) return;
+  datalist.innerHTML = "";
+  items.forEach((item) => {
+    const opt = document.createElement("option");
+    const year = Number(item.model_year);
+    const yearLabel = Number.isFinite(year) && year > 0 ? year : "—";
+    opt.value = `${item.make} ${item.model} ${yearLabel}`;
+    opt.dataset.id = String(item.id);
+    datalist.appendChild(opt);
+  });
+}
+
+function getAdvancedFilteredVehicles() {
+  const makeValue = String(document.getElementById("vehicle-make-select")?.value || "");
+  const modelValue = String(document.getElementById("vehicle-model-select")?.value || "");
+  const yearValue = String(document.getElementById("vehicle-year-select")?.value || "");
+  return vehicleCatalog.filter((item) => {
+    if (makeValue && String(item.make) !== makeValue) return false;
+    if (modelValue && String(item.model) !== modelValue) return false;
+    if (yearValue && String(item.model_year) !== yearValue) return false;
+    return true;
+  });
+}
+
+function populateAdvancedSelectors(items) {
+  const makeSelect = document.getElementById("vehicle-make-select");
+  const modelSelect = document.getElementById("vehicle-model-select");
+  const yearSelect = document.getElementById("vehicle-year-select");
+  if (!(makeSelect instanceof HTMLSelectElement) || !(modelSelect instanceof HTMLSelectElement) || !(yearSelect instanceof HTMLSelectElement)) return;
+
+  const makes = [...new Set(items.map((item) => String(item.make || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"));
+  makeSelect.innerHTML = '<option value="">Все марки</option>';
+  makes.forEach((make) => {
+    makeSelect.innerHTML += `<option value="${make}">${make}</option>`;
+  });
+
+  const resetDependent = () => {
+    const currentMake = makeSelect.value;
+    const forMake = currentMake ? items.filter((item) => String(item.make) === currentMake) : items;
+    const models = [...new Set(forMake.map((item) => String(item.model || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"));
+    const years = [...new Set(forMake.map((item) => String(item.model_year || "")).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
+
+    modelSelect.innerHTML = '<option value="">Все модели</option>';
+    models.forEach((model) => {
+      modelSelect.innerHTML += `<option value="${model}">${model}</option>`;
+    });
+
+    yearSelect.innerHTML = '<option value="">Все годы</option>';
+    years.forEach((year) => {
+      yearSelect.innerHTML += `<option value="${year}">${year}</option>`;
+    });
+  };
+
+  resetDependent();
+  makeSelect.addEventListener("change", () => {
+    resetDependent();
+    renderAdvancedVehicleCards(getAdvancedFilteredVehicles());
+  });
+  modelSelect.addEventListener("change", () => renderAdvancedVehicleCards(getAdvancedFilteredVehicles()));
+  yearSelect.addEventListener("change", () => renderAdvancedVehicleCards(getAdvancedFilteredVehicles()));
+}
+
+function renderAdvancedVehicleCards(items) {
+  const cards = document.getElementById("vehicle-cards");
+  if (!(cards instanceof HTMLDivElement)) return;
+  cards.innerHTML = "";
+  const list = sortVehicleCatalog(items).slice(0, 24);
+  if (list.length === 0) {
+    cards.innerHTML = '<p class="field__note">По выбранным фильтрам ничего не найдено.</p>';
+    return;
+  }
+  list.forEach((item) => {
+    const year = Number(item.model_year);
+    const hp = Number(item.engine_hp);
+    const title = `${item.make} ${item.model} (${Number.isFinite(year) ? year : "—"})`;
+    const fallbackLabel = `${item.make} ${item.model}`.replace(/[&<>"']/g, " ");
+    const fallbackSvg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+        <defs>
+          <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#1a2740"/>
+            <stop offset="100%" stop-color="#0f1728"/>
+          </linearGradient>
+        </defs>
+        <rect width="640" height="360" fill="url(#g)"/>
+        <text x="50%" y="45%" fill="#e8ecf4" font-size="28" text-anchor="middle" font-family="Arial, sans-serif">${fallbackLabel}</text>
+        <text x="50%" y="58%" fill="#9fb1cc" font-size="18" text-anchor="middle" font-family="Arial, sans-serif">Фото недоступно</text>
+      </svg>
+    `.trim();
+    const fallbackImage = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fallbackSvg)}`;
+    const imageUrl =
+      typeof item.image_url === "string" && item.image_url.trim() !== ""
+        ? item.image_url.trim()
+        : fallbackImage;
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "vehicle-card";
+    card.dataset.id = String(item.id);
+    const img = document.createElement("img");
+    img.className = "vehicle-card__media";
+    img.src = imageUrl;
+    img.alt = `${item.make} ${item.model}`;
+    img.loading = "lazy";
+    img.referrerPolicy = "no-referrer";
+    img.addEventListener("error", () => {
+      if (img.src !== fallbackImage) {
+        img.src = fallbackImage;
+      }
+    });
+
+    const body = document.createElement("div");
+    body.className = "vehicle-card__body";
+
+    const pTitle = document.createElement("p");
+    pTitle.className = "vehicle-card__title";
+    pTitle.textContent = title;
+
+    const pMeta = document.createElement("p");
+    pMeta.className = "vehicle-card__meta";
+    pMeta.textContent = Number.isFinite(hp) && hp > 0 ? `${Math.round(hp)} л.с.` : "мощность не указана";
+
+    body.appendChild(pTitle);
+    body.appendChild(pMeta);
+    card.appendChild(img);
+    card.appendChild(body);
+    card.addEventListener("click", () => applyVehiclePresetById(item.id));
+    cards.appendChild(card);
+  });
+}
+
+async function initVehiclePresetPicker() {
+  const quickSearch = document.getElementById("vehicle-quick-search");
+  const toggleAdvancedBtn = document.getElementById("btn-toggle-advanced-picker");
+  const advancedWrap = document.getElementById("vehicle-advanced-picker");
+  if (!(quickSearch instanceof HTMLInputElement) || !(toggleAdvancedBtn instanceof HTMLButtonElement) || !(advancedWrap instanceof HTMLDivElement)) return;
+
+  try {
+    const resp = await fetch(resolveAppUrl("api/vehicle_images.php"), { cache: "no-store" });
+    const payload = await resp.json().catch(() => null);
+    const items = payload && payload.ok && Array.isArray(payload.results) ? payload.results : [];
+    vehicleCatalog = items;
+
+    if (items.length === 0) {
+      quickSearch.placeholder = "Список пока пуст (добавьте авто в БД)";
+      updateVehiclePresetMeta("Список авто пуст. Сначала добавьте машины в базу, затем обновите страницу.");
+      return;
+    }
+
+    buildQuickVehicleDatalist(items);
+    populateAdvancedSelectors(items);
+    renderAdvancedVehicleCards(items);
+    updateVehiclePresetMeta(`Доступно автомобилей: ${items.length}. Выберите вариант для автозаполнения.`);
+  } catch {
+    quickSearch.placeholder = "Не удалось загрузить список авто";
+    updateVehiclePresetMeta("Не удалось загрузить список авто. Проверьте api/vehicle_images.php.");
+  }
+
+  quickSearch.addEventListener("change", () => {
+    const query = quickSearch.value.trim().toLowerCase();
+    if (!query) {
+      updateVehiclePresetMeta("Введите марку/модель или откройте расширенный выбор.");
+      return;
+    }
+    const selected = vehicleCatalog.find((item) => {
+      const label = `${item.make} ${item.model} ${item.model_year}`.toLowerCase();
+      return label === query;
+    });
+    if (!selected) {
+      updateVehiclePresetMeta("Точное совпадение не найдено. Попробуйте выбрать из подсказки или открыть расширенный выбор.");
+      return;
+    }
+    applyVehiclePresetById(selected.id);
+  });
+
+  toggleAdvancedBtn.addEventListener("click", () => {
+    advancedWrap.classList.toggle("is-hidden");
+    toggleAdvancedBtn.textContent = advancedWrap.classList.contains("is-hidden")
+      ? "Расширенный выбор"
+      : "Скрыть расширенный";
+  });
+}
+
 function renderAuctionOptions(filterText = "") {
   const list = document.getElementById("auction-list");
   if (!list) return;
@@ -874,6 +1130,7 @@ function wireFormListeners() {
   try {
     initTheme();
     initAuctionPicker();
+    initVehiclePresetPicker().catch(() => {});
     initRatesAuto();
     renderAuctionOptions();
     updateProgressiveSteps();

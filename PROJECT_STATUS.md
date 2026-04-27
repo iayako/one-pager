@@ -2,7 +2,7 @@
 
 Одностраничный калькулятор расчёта стоимости ввоза автомобиля из Японии в РФ по маршруту и правилам из **ТЕХЗАДАНИЕ калькулятор.pdf** (эталонные цифры — пример в ТЗ и скрин **Расчет себестоимости new 2.png**).
 
-**Последнее обновление:** 2026-04-24 (кэш курсов + cron, Telegram-бот, заявки; деплой: `api/cache` исключён из rsync, `scripts/fix-cache-perms.sh`, перезапуск `systemctl` по NOPASSWD)
+**Последнее обновление:** 2026-04-27 (демо-каталог авто: SQLite `car_selector.db`, API `api/vehicle_images.php`, карточки и каскадный выбор на лендинге; картинки — Wikipedia + заглушка; см. [CAR_SELECTOR_PLAN_STATUS.md](CAR_SELECTOR_PLAN_STATUS.md))
 
 ---
 
@@ -29,6 +29,7 @@
 - [x] **Логирование расчётов в БД:** `api/save_calculation.php` принимает POST с `inputs` / `outputs`; фронт вызывает после каждого успешного `render` (ошибки игнорируются). Схема таблицы — `api/schema.sql` (`calculation_log`). На сервере таблицу нужно создать вручную, если ещё не выполнен SQL.
 - [x] **Заявки с сайта:** `api/save_lead.php` + таблица `lead_request` (расширение полей — `api/migration_lead_client_fields.sql`); форма в `index.html` отправляет контакты и привязку к последнему расчёту.
 - [x] **Telegram-бот (CLI, systemd):** `api/telegram_bot.php` — заявки `/leads`, карточка заявки с кнопкой связанного расчёта, `/id`, `/last`; токен в `api/telegram_config.php` (в Git не коммитится).
+- [x] **Демо каталога автомобилей (встраивается в калькулятор):** локальная SQLite `car_selector.db` (таблицы `vehicles`, `vehicle_images` — см. `car_selector_schema.sql`); `GET api/vehicle_images.php` отдаёт список с URL картинки; опционально `?refresh=1` подставляет отсутствующие изображения через Wikipedia API. На фронте — быстрый поиск по пресетам, каскад марка → модель → год, сетка карточек с фото (`app.js`). Пакетное заполнение/обновление URL картинок: `scripts/refresh_vehicle_images.py` (повторы при сетевых сбоях).
 
 ---
 
@@ -118,6 +119,9 @@
 | `api/schema.sql` | Таблица `calculation_log`; заявки — в миграции `migration_lead_client_fields.sql` |
 | `scripts/fix-cache-perms.sh` | После деплоя: права на `api/cache` для `www-data` (без sudo) |
 | `api/health.php`, `api/db_ping.php` | Диагностика PHP и БД на хостинге |
+| `car_selector.db`, `car_selector_schema.sql` | Локальная SQLite: демо-авто и привязанные картинки |
+| `api/vehicle_images.php` | JSON каталог авто для пресетов и карточек; опционально дозаполнение картинок |
+| `scripts/refresh_vehicle_images.py` | CLI: подобрать картинки по make/model/year (Wikipedia) и записать в `vehicle_images` |
 
 ---
 

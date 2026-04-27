@@ -6,6 +6,8 @@
 
 ## 1. Общая схема
 
+удали фотографии из бд и заполни из рабочими вариантами по типу "https://upload.wikimedia.org/wikipedia/commons/f/fe/Toyota_Corolla_Hybrid_%28E210%29_IMG_4338.jpg "
+
 ```
 Курсы (ввод) ──┐
                ├──► Расходы по Японии (¥)

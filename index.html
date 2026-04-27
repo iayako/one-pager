@@ -69,6 +69,51 @@
 
         <div id="wizard-step-1" class="wizard__pane">
           <div class="grid grid--2">
+            <div class="field field--full vehicle-picker">
+              <span class="field__label">Автомобиль</span>
+
+              <div class="vehicle-picker__quick">
+                <input
+                  type="text"
+                  id="vehicle-quick-search"
+                  list="vehicle-preset-list"
+                  placeholder="Быстрый поиск: Toyota Corolla 2020"
+                  autocomplete="off"
+                />
+                <datalist id="vehicle-preset-list"></datalist>
+                <button type="button" class="btn btn--ghost btn--pick" id="btn-toggle-advanced-picker">
+                  Расширенный выбор
+                </button>
+              </div>
+
+              <span class="field__note" id="vehicle-preset-meta">
+                Введите марку/модель или откройте расширенный выбор.
+              </span>
+
+              <div class="vehicle-picker__advanced is-hidden" id="vehicle-advanced-picker">
+                <div class="grid grid--3">
+                  <label class="field">
+                    <span class="field__label">Марка</span>
+                    <select id="vehicle-make-select">
+                      <option value="">Все марки</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span class="field__label">Модель</span>
+                    <select id="vehicle-model-select">
+                      <option value="">Все модели</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span class="field__label">Год</span>
+                    <select id="vehicle-year-select">
+                      <option value="">Все годы</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="vehicle-cards" id="vehicle-cards"></div>
+              </div>
+            </div>
             <label class="field">
               <span class="field__label">Цена авто, ¥</span>
               <input type="number" name="auctionYen" id="auction-yen" step="1" min="0" required placeholder="Например, 1 802 000" />
