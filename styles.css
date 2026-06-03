@@ -404,13 +404,33 @@ input::placeholder {
 }
 
 .auction-picker__row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.65rem;
+  position: relative;
 }
 
-.btn--pick {
-  white-space: nowrap;
+.auction-picker__row::after {
+  content: "";
+  position: absolute;
+  right: 0.95rem;
+  top: 50%;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: translateY(-65%) rotate(45deg);
+  pointer-events: none;
+}
+
+#auction-name {
+  width: 100%;
+  padding-right: 2.5rem;
+  cursor: pointer;
+}
+
+#auction-name:hover {
+  border-color: rgba(91, 140, 255, 0.35);
+  background:
+    linear-gradient(135deg, rgba(91, 140, 255, 0.08), transparent 55%),
+    var(--surface);
 }
 
 .auction-picker__fob {

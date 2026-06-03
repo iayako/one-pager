@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./styles.css?v=8" />
+  <link rel="stylesheet" href="./styles.css?v=9" />
 </head>
 <body>
   <div class="page">
@@ -74,7 +74,7 @@
           <div class="grid grid--2">
             <label class="field">
               <span class="field__label">Цена авто, ¥</span>
-              <input type="number" name="auctionYen" id="auction-yen" step="1" min="0" required placeholder="Например, 1 802 000" />
+              <input type="text" name="auctionYen" id="auction-yen" inputmode="numeric" autocomplete="off" required placeholder="Например, 1 802 000" />
             </label>
             <label class="field">
               <span class="field__label">Возраст автомобиля</span>
@@ -96,10 +96,7 @@
             <div class="field field--full auction-picker">
               <span class="field__label">Аукцион (определяет FOB)</span>
               <div class="auction-picker__row">
-                <input type="text" name="auctionName" id="auction-name" required readonly placeholder="Аукцион не выбран" />
-                <button type="button" class="btn btn--ghost btn--pick" id="btn-open-auction-modal">
-                  Выбрать
-                </button>
+                <input type="text" name="auctionName" id="auction-name" required readonly role="button" aria-haspopup="listbox" aria-expanded="false" placeholder="Аукцион не выбран" />
               </div>
               <output class="auction-picker__fob" id="auction-fob-display">FOB: —</output>
             </div>
@@ -282,7 +279,7 @@
       <section class="contacts-card" aria-label="Контакты">
         <div class="contacts-card__main">
           <h2 class="contacts-card__title">Связаться с нами</h2>
-          <p class="contacts-card__hint">UU SERVICE AUTO, Улан-Удэ</p>
+          <p class="contacts-card__hint">Улан-Удэ Сервис Авто</p>
           <a class="contacts-card__phone" href="tel:+79085913000">
             <span class="contacts-card__icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none">
@@ -361,6 +358,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="./app.js?v=11"></script>
+  <script type="module" src="./app.js?v=13"></script>
 </body>
 </html>

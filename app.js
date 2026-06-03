@@ -173,6 +173,20 @@ function formatInt(n) {
   return Math.round(n).toLocaleString("ru-RU");
 }
 
+function parseFormNumber(value) {
+  const normalized = String(value ?? "")
+    .replace(/[\s\u00a0\u202f]+/g, "")
+    .replace(",", ".");
+  const n = Number.parseFloat(normalized);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function formatIntegerInputValue(value) {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (digits === "") return "";
+  return Number(digits).toLocaleString("ru-RU", { maximumFractionDigits: 0 });
+}
+
 /** URL к PHP в той же папке, что и app.js (см. APP_SCRIPT_URL). */
 function resolveAppUrl(relativePath) {
   return new URL(relativePath, APP_SCRIPT_URL).href;
@@ -206,25 +220,25 @@ function readForm() {
   const form = document.getElementById("calc-form");
   const fd = new FormData(form);
   return {
-    yenPerUsd: parseFloat(fd.get("yenPerUsd")),
-    rubPerUsd: parseFloat(fd.get("rubPerUsd")),
-    rubPerYen: parseFloat(fd.get("rubPerYen")),
-    rubPerEur: parseFloat(fd.get("rubPerEur")),
-    usdMnt: parseFloat(fd.get("usdMnt")),
-    jpyMnt: parseFloat(fd.get("jpyMnt")),
-    mntPerRub: parseFloat(fd.get("mntPerRub")),
+    yenPerUsd: parseFormNumber(fd.get("yenPerUsd")),
+    rubPerUsd: parseFormNumber(fd.get("rubPerUsd")),
+    rubPerYen: parseFormNumber(fd.get("rubPerYen")),
+    rubPerEur: parseFormNumber(fd.get("rubPerEur")),
+    usdMnt: parseFormNumber(fd.get("usdMnt")),
+    jpyMnt: parseFormNumber(fd.get("jpyMnt")),
+    mntPerRub: parseFormNumber(fd.get("mntPerRub")),
     vehicleAge: String(fd.get("vehicleAge") || ""),
     engineType: String(fd.get("engineType") || ""),
     auctionName: String(fd.get("auctionName") || ""),
-    engineDisplacementCc: parseFloat(String(fd.get("engineDisplacementCc"))),
-    enginePowerHp: parseFloat(String(fd.get("enginePowerHp"))),
-    auctionYen: parseFloat(fd.get("auctionYen")),
-    fobYen: parseFloat(fd.get("fobYen")),
-    vanningYen: parseFloat(fd.get("vanningYen")),
-    usdTrain: parseFloat(fd.get("usdTrain")),
-    usdTrack: parseFloat(fd.get("usdTrack")),
-    rubInInvoice: parseFloat(fd.get("rubInInvoice")),
-    labRub: parseFloat(fd.get("labRub")),
+    engineDisplacementCc: parseFormNumber(fd.get("engineDisplacementCc")),
+    enginePowerHp: parseFormNumber(fd.get("enginePowerHp")),
+    auctionYen: parseFormNumber(fd.get("auctionYen")),
+    fobYen: parseFormNumber(fd.get("fobYen")),
+    vanningYen: parseFormNumber(fd.get("vanningYen")),
+    usdTrain: parseFormNumber(fd.get("usdTrain")),
+    usdTrack: parseFormNumber(fd.get("usdTrack")),
+    rubInInvoice: parseFormNumber(fd.get("rubInInvoice")),
+    labRub: parseFormNumber(fd.get("labRub")),
   };
 }
 
@@ -749,21 +763,37 @@ function renderAuctionOptions(filterText = "") {
 
 function initAuctionPicker() {
   const modal = document.getElementById("auction-modal");
-  const openBtn = document.getElementById("btn-open-auction-modal");
+  const auctionInput = document.getElementById("auction-name");
   const closeBtn = document.getElementById("btn-close-auction-modal");
   const search = document.getElementById("auction-search");
   const list = document.getElementById("auction-list");
-  if (!modal || !openBtn || !search || !list) return;
+  if (!modal || !auctionInput || !search || !list) return;
 
-  openBtn.addEventListener("click", () => {
+  const openPicker = () => {
     renderAuctionOptions(search.value);
+    auctionInput.setAttribute("aria-expanded", "true");
     openAuctionDialog(modal);
     search.focus();
+  };
+
+  const closePicker = () => {
+    auctionInput.setAttribute("aria-expanded", "false");
+    closeAuctionDialog(modal);
+  };
+
+  auctionInput.addEventListener("click", openPicker);
+  auctionInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    openPicker();
+  });
+  modal.addEventListener("close", () => {
+    auctionInput.setAttribute("aria-expanded", "false");
   });
 
   if (closeBtn) {
     closeBtn.addEventListener("click", () => {
-      closeAuctionDialog(modal);
+      closePicker();
     });
   }
 
@@ -780,7 +810,7 @@ function initAuctionPicker() {
     const fobYen = Number(btn.getAttribute("data-fob"));
     if (!name || !Number.isFinite(fobYen)) return;
     setSelectedAuction(name, fobYen);
-    closeAuctionDialog(modal);
+    closePicker();
     updateProgressiveSteps();
   });
 }
@@ -973,6 +1003,22 @@ function initLeadForm() {
   });
 }
 
+function initAuctionPriceFormatting() {
+  const input = document.getElementById("auction-yen");
+  if (!(input instanceof HTMLInputElement)) return;
+
+  input.addEventListener("input", () => {
+    const formatted = formatIntegerInputValue(input.value);
+    if (formatted !== input.value) {
+      input.value = formatted;
+    }
+  });
+
+  input.addEventListener("blur", () => {
+    input.value = formatIntegerInputValue(input.value);
+  });
+}
+
 function wireFormListeners() {
   const form = document.getElementById("calc-form");
   if (form) {
@@ -996,6 +1042,7 @@ function wireFormListeners() {
     renderAuctionOptions();
     updateProgressiveSteps();
     updateRatesUIFromInputs();
+    initAuctionPriceFormatting();
     initLeadForm();
     wireFormListeners();
   } catch (err) {
