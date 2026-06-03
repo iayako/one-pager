@@ -2,7 +2,7 @@
  * Калькулятор по ТЗ: инвойс ¥/₽, комиссия АТБ, итог с таможней и лабораторией.
  */
 
-import { computeCalculation } from "./calc-core.js";
+import { DEFAULT_CALCULATION_CONFIG, computeCalculation } from "./calc-core.js";
 
 const THEME_STORAGE_KEY = "calculator-theme";
 const AUCTION_OPTIONS = [
@@ -154,9 +154,14 @@ const APP_SCRIPT_URL = (() => {
 
 let latestCalculationSnapshot = null;
 let latestCalculationId = null;
+let currentCalculationConfig = DEFAULT_CALCULATION_CONFIG;
 
 function formatYen(n) {
   return `${formatInt(n)} ¥`;
+}
+
+function formatMnt(n) {
+  return `${formatInt(n)} ₮`;
 }
 
 function formatRub(n) {
@@ -205,6 +210,9 @@ function readForm() {
     rubPerUsd: parseFloat(fd.get("rubPerUsd")),
     rubPerYen: parseFloat(fd.get("rubPerYen")),
     rubPerEur: parseFloat(fd.get("rubPerEur")),
+    usdMnt: parseFloat(fd.get("usdMnt")),
+    jpyMnt: parseFloat(fd.get("jpyMnt")),
+    mntPerRub: parseFloat(fd.get("mntPerRub")),
     vehicleAge: String(fd.get("vehicleAge") || ""),
     engineType: String(fd.get("engineType") || ""),
     auctionName: String(fd.get("auctionName") || ""),
@@ -249,6 +257,76 @@ function applyTheme(theme) {
     toggle.innerHTML = `${icon}<span class="sr-only">Переключить тему</span>`;
     toggle.setAttribute("aria-label", theme === "dark" ? "Светлая тема" : "Тёмная тема");
   }
+}
+
+function numericConfigVariable(config, key) {
+  const vars = config && typeof config === "object" ? config.variables : null;
+  const item = vars && typeof vars === "object" ? vars[key] : null;
+  const raw = item && typeof item === "object" && "value" in item ? item.value : item;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+function setHiddenValue(id, value) {
+  const el = document.getElementById(id);
+  if (el instanceof HTMLInputElement && value !== null && value !== undefined && Number.isFinite(Number(value))) {
+    el.value = String(value);
+  }
+}
+
+function applyCalculationConfig(config) {
+  currentCalculationConfig = config && typeof config === "object" ? config : DEFAULT_CALCULATION_CONFIG;
+  setHiddenValue("vanning-yen", numericConfigVariable(currentCalculationConfig, "vanningYen"));
+  setHiddenValue("rub-in-invoice", numericConfigVariable(currentCalculationConfig, "rubInInvoice"));
+  setHiddenValue("lab-rub", numericConfigVariable(currentCalculationConfig, "labRub"));
+  setHiddenValue("mnt-per-rub", numericConfigVariable(currentCalculationConfig, "mntPerRub"));
+  applyResultRowLabels(currentCalculationConfig);
+  updateRatesUIFromInputs();
+  updateProgressiveSteps();
+}
+
+function applyResultRowLabels(config) {
+  const rows = config && typeof config === "object" && config.resultRows ? config.resultRows : {};
+  const map = {
+    japanMntTotal: ["out-japan-yen", "out-japan-yen-t"],
+    deliveryMnt: ["out-usd-train-yen", "out-usd-track-yen"],
+    rubInvoiceMntEquivalent: ["out-rub-invoice-train-yen", "out-rub-invoice-track-yen"],
+    invoiceMnt: ["out-invoice-yen-train", "out-invoice-yen-track"],
+    invoiceRub: ["out-invoice-rub-train", "out-invoice-rub-track"],
+    customs: ["out-customs-train", "out-customs-track"],
+    lab: ["out-lab-train", "out-lab-track"],
+    grandTotal: ["out-grand-train", "out-grand-track"],
+  };
+  Object.entries(map).forEach(([key, valueIds]) => {
+    const item = rows[key];
+    if (!item || typeof item !== "object") return;
+    const label = String(item.label || "").trim();
+    const description = String(item.description || "").trim();
+    valueIds.forEach((id) => {
+      const dd = document.getElementById(id);
+      const row = dd?.closest(".result-row");
+      const dt = row?.querySelector("dt");
+      if (!dt || !label) return;
+      dt.textContent = label;
+      if (description) {
+        const note = document.createElement("span");
+        note.className = "result-row__note";
+        note.textContent = description;
+        dt.appendChild(note);
+      }
+    });
+  });
+}
+
+async function loadCalculationConfig() {
+  const resp = await fetch(resolveAppUrl(`api/calculation_config.php?ts=${Date.now()}`), {
+    cache: "no-store",
+  });
+  const data = await resp.json().catch(() => null);
+  if (!resp.ok || !data || !data.ok || !data.config) {
+    throw new Error(data && typeof data.error === "string" ? data.error : "Не удалось загрузить схему расчёта");
+  }
+  applyCalculationConfig(data.config);
 }
 
 function initTheme() {
@@ -349,10 +427,15 @@ function updateRatesUIFromInputs() {
   const rubPerUsd = Number(document.getElementById("rub-per-usd")?.value);
   const rubPerYen = Number(document.getElementById("rub-per-yen")?.value);
   const rubPerEur = Number(document.getElementById("rub-per-eur")?.value);
+  const usdMnt = Number(document.getElementById("usd-mnt")?.value);
+  const jpyMntRaw = Number(document.getElementById("jpy-mnt")?.value);
+  const mntPerRub = Number(document.getElementById("mnt-per-rub")?.value);
+  const risk = numericConfigVariable(currentCalculationConfig, "jpyMntRiskMarkup") || 0;
+  const jpyMnt = Number.isFinite(jpyMntRaw) && jpyMntRaw > 0 ? jpyMntRaw + risk : NaN;
 
-  setRateText("rate-yen-per-usd", formatRate(yenPerUsd, 4));
-  setRateText("rate-rub-per-usd", formatRate(rubPerUsd, 2));
-  setRateText("rate-rub-per-yen", formatRate(rubPerYen, 6));
+  setRateText("rate-yen-per-usd", formatRate(jpyMnt, 4));
+  setRateText("rate-rub-per-usd", formatRate(usdMnt, 2));
+  setRateText("rate-rub-per-yen", formatRate(mntPerRub, 4));
   setRateText("rate-rub-per-eur", formatRate(rubPerEur, 4));
 }
 
@@ -397,7 +480,28 @@ function deriveRubPerYenIfPossible() {
   const yenPerUsdEl = document.getElementById("yen-per-usd");
   const rubPerUsdEl = document.getElementById("rub-per-usd");
   const rubPerYenEl = document.getElementById("rub-per-yen");
+  const usdMntEl = document.getElementById("usd-mnt");
+  const jpyMntEl = document.getElementById("jpy-mnt");
+  const mntPerRubEl = document.getElementById("mnt-per-rub");
   if (!yenPerUsdEl || !rubPerUsdEl || !rubPerYenEl) return false;
+  const usdMnt = Number(usdMntEl?.value);
+  const jpyMntBase = Number(jpyMntEl?.value);
+  const mntPerRub = Number(mntPerRubEl?.value);
+  const risk = numericConfigVariable(currentCalculationConfig, "jpyMntRiskMarkup") || 0;
+  if (
+    Number.isFinite(usdMnt) &&
+    usdMnt > 0 &&
+    Number.isFinite(jpyMntBase) &&
+    jpyMntBase > 0 &&
+    Number.isFinite(mntPerRub) &&
+    mntPerRub > 0
+  ) {
+    const jpyMnt = jpyMntBase + risk;
+    yenPerUsdEl.value = String(usdMnt / jpyMnt);
+    rubPerUsdEl.value = String(usdMnt / mntPerRub);
+    rubPerYenEl.value = String(jpyMnt / mntPerRub);
+    return true;
+  }
   const yenPerUsd = Number(yenPerUsdEl.value);
   const rubPerUsd = Number(rubPerUsdEl.value);
   if (!Number.isFinite(yenPerUsd) || yenPerUsd <= 0) return false;
@@ -439,6 +543,8 @@ async function refreshRatesAuto(opts = {}) {
   const inputRubPerUsd = document.getElementById("rub-per-usd");
   const inputRubPerYen = document.getElementById("rub-per-yen");
   const inputRubPerEur = document.getElementById("rub-per-eur");
+  const inputUsdMnt = document.getElementById("usd-mnt");
+  const inputJpyMnt = document.getElementById("jpy-mnt");
 
   let usedSnapshot = false;
   try {
@@ -453,12 +559,14 @@ async function refreshRatesAuto(opts = {}) {
       snap.ok &&
       snap.complete &&
       age <= RATES_SNAPSHOT_MAX_AGE_SEC &&
-      typeof snap.yenPerUsd === "number" &&
-      typeof snap.rubPerUsd === "number" &&
+      typeof snap.usdMnt === "number" &&
+      typeof snap.jpyMnt === "number" &&
       typeof snap.rubPerEur === "number"
     ) {
-      if (inputYenPerUsd) inputYenPerUsd.value = String(snap.yenPerUsd);
-      if (inputRubPerUsd) inputRubPerUsd.value = String(snap.rubPerUsd);
+      if (inputUsdMnt) inputUsdMnt.value = String(snap.usdMnt);
+      if (inputJpyMnt) inputJpyMnt.value = String(snap.jpyMnt);
+      if (inputYenPerUsd && typeof snap.yenPerUsd === "number") inputYenPerUsd.value = String(snap.yenPerUsd);
+      if (inputRubPerUsd && typeof snap.rubPerUsd === "number") inputRubPerUsd.value = String(snap.rubPerUsd);
       if (inputRubPerEur) inputRubPerEur.value = String(snap.rubPerEur);
       let atbHasRubPerYen = false;
       if (
@@ -469,7 +577,7 @@ async function refreshRatesAuto(opts = {}) {
         inputRubPerYen.value = String(snap.rubPerYen);
         atbHasRubPerYen = true;
       }
-      const derived = atbHasRubPerYen ? true : deriveRubPerYenIfPossible();
+      const derived = deriveRubPerYenIfPossible() || atbHasRubPerYen;
       const snapLabel =
         snap.fetchedAt && String(snap.fetchedAt).trim() !== ""
           ? formatInstantRuWithTimeZone(String(snap.fetchedAt).trim())
@@ -510,6 +618,12 @@ async function refreshRatesAuto(opts = {}) {
       if (r.src === "Khan Bank" && inputYenPerUsd && typeof r.data.yenPerUsd === "number") {
         inputYenPerUsd.value = String(r.data.yenPerUsd);
       }
+      if (r.src === "Khan Bank" && inputUsdMnt && typeof r.data.usdMnt === "number") {
+        inputUsdMnt.value = String(r.data.usdMnt);
+      }
+      if (r.src === "Khan Bank" && inputJpyMnt && typeof r.data.jpyMnt === "number") {
+        inputJpyMnt.value = String(r.data.jpyMnt);
+      }
       if (r.src === "АТБ" && inputRubPerUsd && typeof r.data.rubPerUsd === "number") {
         inputRubPerUsd.value = String(r.data.rubPerUsd);
         if (inputRubPerYen && typeof r.data.rubPerYen === "number" && r.data.rubPerYen > 0) {
@@ -524,7 +638,7 @@ async function refreshRatesAuto(opts = {}) {
   }
 
   // ₽/¥: приоритетно берём из АТБ; если нет — выводим из ₽/$ и ¥/$.
-  const derived = atbHasRubPerYen ? true : deriveRubPerYenIfPossible();
+  const derived = deriveRubPerYenIfPossible() || atbHasRubPerYen;
   if (!derived && inputRubPerYen) {
     // оставляем дефолт, но UI обновим
   }
@@ -567,17 +681,17 @@ async function persistCalculationSnapshot(snapshot) {
 }
 
 function render(data) {
-  const snap = computeCalculation(data);
+  const snap = computeCalculation(data, currentCalculationConfig);
   const o = snap.outputs;
 
-  document.getElementById("out-japan-yen").textContent = formatYen(o.japanYenTotal);
-  document.getElementById("out-japan-yen-t").textContent = formatYen(o.japanYenTotal);
-  document.getElementById("out-usd-train-yen").textContent = formatYen(o.usdTrainYen);
-  document.getElementById("out-usd-track-yen").textContent = formatYen(o.usdTrackYen);
-  document.getElementById("out-rub-invoice-train-yen").textContent = formatYen(o.rubInvoiceYenEquivalent);
-  document.getElementById("out-rub-invoice-track-yen").textContent = formatYen(o.rubInvoiceYenEquivalent);
-  document.getElementById("out-invoice-yen-train").textContent = formatYen(o.invoiceYenTrain);
-  document.getElementById("out-invoice-yen-track").textContent = formatYen(o.invoiceYenTrack);
+  document.getElementById("out-japan-yen").textContent = formatMnt(o.japanMntTotal);
+  document.getElementById("out-japan-yen-t").textContent = formatMnt(o.japanMntTotal);
+  document.getElementById("out-usd-train-yen").textContent = formatMnt(o.trainDeliveryMnt);
+  document.getElementById("out-usd-track-yen").textContent = formatMnt(o.trackDeliveryMnt);
+  document.getElementById("out-rub-invoice-train-yen").textContent = formatMnt(o.rubInvoiceMntEquivalent);
+  document.getElementById("out-rub-invoice-track-yen").textContent = formatMnt(o.rubInvoiceMntEquivalent);
+  document.getElementById("out-invoice-yen-train").textContent = formatMnt(o.invoiceMntTrain);
+  document.getElementById("out-invoice-yen-track").textContent = formatMnt(o.invoiceMntTrack);
   document.getElementById("out-invoice-rub-train").textContent = formatRub(o.bankTrain.totalRub);
   document.getElementById("out-invoice-rub-track").textContent = formatRub(o.bankTrack.totalRub);
   document.getElementById("out-customs-train").textContent = formatRub(o.customsTrain.totalRub);
@@ -587,7 +701,7 @@ function render(data) {
   document.getElementById("out-grand-train").textContent = formatRub(o.grandTotalTrainRub);
   document.getElementById("out-grand-track").textContent = formatRub(o.grandTotalTrackRub);
 
-  persistCalculationSnapshot({ inputs: snap.inputs, outputs: snap.outputs });
+  persistCalculationSnapshot({ config: snap.config, inputs: snap.inputs, outputs: snap.outputs });
   const leadCard = document.getElementById("lead-card");
   if (leadCard) leadCard.classList.remove("lead-card--hidden");
   const leadSummary = document.getElementById("lead-summary");
@@ -687,7 +801,10 @@ function setKhanYenNote(data) {
   const d = data.date || "—";
   const usd = data.usdNonCashSellMnt != null ? data.usdNonCashSellMnt : "—";
   const jpy = data.jpyNonCashBuyMnt != null ? data.jpyNonCashBuyMnt : "—";
-  el.textContent = `Khan Bank на ${d}: USD ${usd} ₮ (бэлэн бус зарах), JPY ${jpy} ₮ (бэлэн бус авах) → ¥/$ ${data.yenPerUsd != null ? data.yenPerUsd : "—"}`;
+  const risk = numericConfigVariable(currentCalculationConfig, "jpyMntRiskMarkup") || 0;
+  const jpyWithRisk = Number(data.jpyMnt);
+  const jpyLabel = Number.isFinite(jpyWithRisk) ? formatRate(jpyWithRisk + risk, 4) : "—";
+  el.textContent = `Khan Bank на ${d}: USD ${usd} ₮, JPY ${jpy} ₮ + риск ${risk} = ${jpyLabel} ₮/¥`;
 }
 
 function setCbrEurDateLine(data) {
@@ -870,9 +987,10 @@ function wireFormListeners() {
   }
 }
 
-(function bootCalculator() {
+(async function bootCalculator() {
   try {
     initTheme();
+    await loadCalculationConfig();
     initAuctionPicker();
     initRatesAuto();
     renderAuctionOptions();

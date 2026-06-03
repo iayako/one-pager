@@ -35,6 +35,9 @@
         <input type="hidden" name="rubPerUsd" id="rub-per-usd" value="" />
         <input type="hidden" name="rubPerYen" id="rub-per-yen" value="" />
         <input type="hidden" name="rubPerEur" id="rub-per-eur" value="" />
+        <input type="hidden" name="usdMnt" id="usd-mnt" value="" />
+        <input type="hidden" name="jpyMnt" id="jpy-mnt" value="" />
+        <input type="hidden" name="mntPerRub" id="mnt-per-rub" value="" />
       </div>
 
       <section class="panel panel--tight rates-panel">
@@ -42,17 +45,17 @@
         <div class="rates-strip" role="list" aria-label="Курсы валют (используются в расчёте)">
           <div class="rate" role="listitem">
             <span class="rate__icon rate__icon--usd" aria-hidden="true">USD</span>
-            <span class="rate__label">₽ / $</span>
+            <span class="rate__label">₮ / $</span>
             <span class="rate__value" id="rate-rub-per-usd">—</span>
           </div>
           <div class="rate" role="listitem">
             <span class="rate__icon rate__icon--jpy" aria-hidden="true">JPY</span>
-            <span class="rate__label">¥ / $</span>
+            <span class="rate__label">₮ / ¥</span>
             <span class="rate__value" id="rate-yen-per-usd">—</span>
           </div>
           <div class="rate" role="listitem">
             <span class="rate__icon rate__icon--jpy" aria-hidden="true">JPY</span>
-            <span class="rate__label">₽ / ¥</span>
+            <span class="rate__label">₮ / ₽</span>
             <span class="rate__value" id="rate-rub-per-yen">—</span>
           </div>
           <div class="rate" role="listitem">
@@ -139,7 +142,7 @@
 
       <div
         class="form__submit-wrap progressive-step is-hidden"
-        data-requires="auction-yen,vehicle-age,engine-type,auction-name,engine-cc,engine-hp,yen-per-usd,rub-per-usd,rub-per-yen,rub-per-eur"
+        data-requires="auction-yen,vehicle-age,engine-type,auction-name,engine-cc,engine-hp,usd-mnt,jpy-mnt,mnt-per-rub,rub-per-eur"
       >
         <button type="submit" class="btn btn--primary" id="btn-calc">Рассчитать</button>
       </div>
@@ -155,23 +158,23 @@
           </header>
           <dl class="result-list">
             <div class="result-row">
-              <dt>Расходы по Японии, ¥</dt>
+              <dt>Расходы по Японии, ₮</dt>
               <dd id="out-japan-yen">—</dd>
             </div>
             <div class="result-row">
-              <dt>Расходы до Монголии, ¥</dt>
+              <dt>Расходы до Монголии, ₮</dt>
               <dd id="out-usd-train-yen">—</dd>
             </div>
             <div class="result-row">
-              <dt>Расходы с таможенной очисткой, ¥</dt>
+              <dt>Таможенная очистка в инвойсе, ₮</dt>
               <dd id="out-rub-invoice-train-yen">—</dd>
             </div>
             <div class="result-row result-row--strong">
-              <dt>Оплата в банк по инвойсу, ¥</dt>
+              <dt>Инвойс до комиссии посредника, ₮</dt>
               <dd id="out-invoice-yen-train">—</dd>
             </div>
             <div class="result-row">
-              <dt>Оплата по инвойсу в рублях с комиссией банка, ₽</dt>
+              <dt>Оплата по инвойсу в рублях с комиссией посредника, ₽</dt>
               <dd id="out-invoice-rub-train">—</dd>
             </div>
             <div class="result-row">
@@ -199,23 +202,23 @@
           </header>
           <dl class="result-list">
             <div class="result-row">
-              <dt>Расходы по Японии, ¥</dt>
+              <dt>Расходы по Японии, ₮</dt>
               <dd id="out-japan-yen-t">—</dd>
             </div>
             <div class="result-row">
-              <dt>Расходы до Монголии, ¥</dt>
+              <dt>Расходы до Монголии, ₮</dt>
               <dd id="out-usd-track-yen">—</dd>
             </div>
             <div class="result-row">
-              <dt>Расходы с таможенной очисткой, ¥</dt>
+              <dt>Таможенная очистка в инвойсе, ₮</dt>
               <dd id="out-rub-invoice-track-yen">—</dd>
             </div>
             <div class="result-row result-row--strong">
-              <dt>Оплата в банк по инвойсу, ¥</dt>
+              <dt>Инвойс до комиссии посредника, ₮</dt>
               <dd id="out-invoice-yen-track">—</dd>
             </div>
             <div class="result-row">
-              <dt>Оплата по инвойсу в рублях с комиссией банка, ₽</dt>
+              <dt>Оплата по инвойсу в рублях с комиссией посредника, ₽</dt>
               <dd id="out-invoice-rub-track">—</dd>
             </div>
             <div class="result-row">
@@ -358,6 +361,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="./app.js?v=8"></script>
+  <script type="module" src="./app.js?v=10"></script>
 </body>
 </html>

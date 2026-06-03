@@ -206,5 +206,7 @@ echo json_encode([
     'date' => $dateParam,
     'usdNonCashSellMnt' => round($usdSell, 2),
     'jpyNonCashBuyMnt' => round($jpyBuy, 4),
+    'usdMnt' => round($usdSell, 2),
+    'jpyMnt' => round($jpyBuy, 4),
     'yenPerUsd' => round($yenPerUsd, 4),
 ], JSON_UNESCAPED_UNICODE);

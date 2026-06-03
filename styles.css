@@ -381,6 +381,7 @@ h1 {
 input[type="number"],
 input[type="text"],
 input[type="tel"],
+input[type="password"],
 select {
   font-family: inherit;
   font-size: 0.95rem;
@@ -396,6 +397,7 @@ select {
 input:focus,
 input[type="text"]:focus,
 input[type="tel"]:focus,
+input[type="password"]:focus,
 select:focus {
   outline: none;
   border-color: rgba(91, 140, 255, 0.55);

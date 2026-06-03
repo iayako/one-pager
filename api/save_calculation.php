@@ -66,6 +66,7 @@ if (!is_array($payload)) {
 
 $inputs = $payload['inputs'] ?? null;
 $outputs = $payload['outputs'] ?? null;
+$config = $payload['config'] ?? null;
 
 if (!is_array($inputs) || !is_array($outputs)) {
     http_response_code(400);
@@ -78,6 +79,16 @@ if (!is_array($inputs) || !is_array($outputs)) {
 
 $inputsJson = json_encode($inputs, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 $outputsJson = json_encode($outputs, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+$configVersionId = null;
+if (is_array($config)) {
+    $rawVersionId = $config['versionId'] ?? null;
+    if (is_int($rawVersionId) || (is_string($rawVersionId) && ctype_digit($rawVersionId))) {
+        $tmp = (int) $rawVersionId;
+        if ($tmp > 0) {
+            $configVersionId = $tmp;
+        }
+    }
+}
 
 $dsn = sprintf(
     'mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
@@ -104,10 +115,22 @@ try {
         $ua = null;
     }
 
-    $stmt = $pdo->prepare(
-        'INSERT INTO calculation_log (inputs_json, outputs_json, client_ip, user_agent) VALUES (?, ?, ?, ?)'
-    );
-    $stmt->execute([$inputsJson, $outputsJson, $ip, $ua]);
+    try {
+        $stmt = $pdo->prepare(
+            'INSERT INTO calculation_log (calculation_config_version_id, inputs_json, outputs_json, client_ip, user_agent) VALUES (?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$configVersionId, $inputsJson, $outputsJson, $ip, $ua]);
+    } catch (PDOException $e) {
+        $isMissingConfigColumn = str_contains($e->getMessage(), 'calculation_config_version_id')
+            || $e->getCode() === '42S22';
+        if (!$isMissingConfigColumn) {
+            throw $e;
+        }
+        $stmt = $pdo->prepare(
+            'INSERT INTO calculation_log (inputs_json, outputs_json, client_ip, user_agent) VALUES (?, ?, ?, ?)'
+        );
+        $stmt->execute([$inputsJson, $outputsJson, $ip, $ua]);
+    }
 
     $id = (int) $pdo->lastInsertId();
 

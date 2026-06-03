@@ -214,44 +214,439 @@ export function usdToYen(usd, yenPerUsd) {
   return Math.round(u * y);
 }
 
+export const DEFAULT_CALCULATION_CONFIG = {
+  id: "default-mnt-excel",
+  versionId: null,
+  name: "MNT расчёт по Excel",
+  variables: {
+    vanningYen: { label: "Vanning, ¥", value: 40000 },
+    usdTrainContainer: { label: "Контейнер Train, $", value: 1200 },
+    usdTrackContainer: { label: "Контейнер Track, $", value: 1200 },
+    mongoliaDocsUsd: { label: "Документы в Монголии, $", value: 440 },
+    borderSupportUsd: { label: "Сопровождение границы, $", value: 200 },
+    trainCarrierUsd: { label: "Автовоз УБ - СБ, $", value: 200 },
+    trackCarrierUsd: { label: "Автовоз Замын-Ууд - СБ, $", value: 500 },
+    rubInInvoice: { label: "Таможенная очистка, ₽", value: 47800 },
+    japanFixedMnt: { label: "Фиксированная комиссия к Японии, ₮", value: 15000 },
+    agentFixedMnt: { label: "Комиссия посредника, ₮", value: 550000 },
+    jpyMntRiskMarkup: { label: "Риск к курсу ¥/₮", value: 0.6 },
+    mntPerRub: { label: "₮ за 1 ₽", value: 47.8 },
+    labRub: { label: "Лаборатория, ₽", value: 40000 },
+  },
+  resultRows: {
+    japanMntTotal: {
+      label: "Расходы по Японии, ₮",
+      description: "Цена авто, FOB, Extra fee, Vanning, перевод в тугрики и фиксированная комиссия.",
+    },
+    deliveryMnt: {
+      label: "Расходы до Монголии, ₮",
+      description: "Контейнер, документы, сопровождение границы и автовоз по выбранному маршруту.",
+    },
+    rubInvoiceMntEquivalent: {
+      label: "Таможенная очистка в инвойсе, ₮",
+      description: "Рублёвая сумма очистки, переведённая в тугрики по ручному курсу.",
+    },
+    invoiceMnt: {
+      label: "Инвойс до комиссии посредника, ₮",
+      description: "Сумма японской части и доставки до добавления комиссии посредника.",
+    },
+    invoiceRub: {
+      label: "Оплата по инвойсу в рублях с комиссией посредника, ₽",
+      description: "Инвойс в тугриках плюс комиссия посредника, делённые на курс ₮/₽.",
+    },
+    customs: {
+      label: "Таможенный платёж, пошлина и утилизационный сбор, ₽",
+      description: "Таможенный блок считается по действующим правилам и не меняется в админке формул.",
+    },
+    lab: {
+      label: "ЭПТС и СБКТС, ₽",
+      description: "Гибридные авто обязательны к прохождению лаборатории в г. Кяхта.",
+    },
+    grandTotal: {
+      label: "Итоговая сумма, ₽",
+      description: "Инвойс, таможенные платежи и лаборатория.",
+    },
+  },
+  formulas: {
+    auctionCommissionYen: {
+      op: "table",
+      input: { ref: "auctionYen" },
+      bands: [
+        { max: 500000, value: 0 },
+        { max: 1000000, value: 10000 },
+        { max: 1500000, value: 20000 },
+        { max: 2000000, value: 40000 },
+        { max: 2500000, value: 60000 },
+        { max: 3000000, value: 80000 },
+        { max: 3500000, value: 100000 },
+        { max: 4000000, value: 120000 },
+        { max: 4500000, value: 140000 },
+        { max: 5000000, value: 160000 },
+      ],
+      default: { op: "mul", args: [{ ref: "auctionYen" }, 0.05] },
+      round: "nearest",
+    },
+    japanYenTotal: {
+      op: "sum",
+      args: [
+        { ref: "auctionYen" },
+        { ref: "fobYen" },
+        { ref: "vanningYen" },
+        { ref: "auctionCommissionYen" },
+      ],
+    },
+    japanMntTotal: {
+      op: "sum",
+      args: [
+        { op: "mul", args: [{ ref: "japanYenTotal" }, { ref: "jpyMnt" }] },
+        { ref: "japanFixedMnt" },
+      ],
+    },
+    trainDeliveryUsd: {
+      op: "sum",
+      args: [
+        { ref: "usdTrainContainer" },
+        { ref: "mongoliaDocsUsd" },
+        { ref: "borderSupportUsd" },
+        { ref: "trainCarrierUsd" },
+      ],
+    },
+    trackDeliveryUsd: {
+      op: "sum",
+      args: [
+        { ref: "usdTrackContainer" },
+        { ref: "mongoliaDocsUsd" },
+        { ref: "borderSupportUsd" },
+        { ref: "trackCarrierUsd" },
+      ],
+    },
+    rubInvoiceMntEquivalent: {
+      op: "mul",
+      args: [{ ref: "rubInInvoice" }, { ref: "mntPerRub" }],
+    },
+    trainDeliveryMnt: {
+      op: "sum",
+      args: [
+        { op: "mul", args: [{ ref: "trainDeliveryUsd" }, { ref: "usdMnt" }] },
+        { ref: "rubInvoiceMntEquivalent" },
+      ],
+    },
+    trackDeliveryMnt: {
+      op: "sum",
+      args: [
+        { op: "mul", args: [{ ref: "trackDeliveryUsd" }, { ref: "usdMnt" }] },
+        { ref: "rubInvoiceMntEquivalent" },
+      ],
+    },
+    invoiceMntTrain: {
+      op: "sum",
+      args: [{ ref: "japanMntTotal" }, { ref: "trainDeliveryMnt" }],
+    },
+    invoiceMntTrack: {
+      op: "sum",
+      args: [{ ref: "japanMntTotal" }, { ref: "trackDeliveryMnt" }],
+    },
+    payableMntTrain: {
+      op: "sum",
+      args: [{ ref: "invoiceMntTrain" }, { ref: "agentFixedMnt" }],
+    },
+    payableMntTrack: {
+      op: "sum",
+      args: [{ ref: "invoiceMntTrack" }, { ref: "agentFixedMnt" }],
+    },
+    invoiceRubTrain: {
+      op: "div",
+      args: [{ ref: "payableMntTrain" }, { ref: "mntPerRub" }],
+    },
+    invoiceRubTrack: {
+      op: "div",
+      args: [{ ref: "payableMntTrack" }, { ref: "mntPerRub" }],
+    },
+    invoiceYenTrain: {
+      op: "div",
+      args: [{ ref: "invoiceMntTrain" }, { ref: "jpyMnt" }],
+    },
+    invoiceYenTrack: {
+      op: "div",
+      args: [{ ref: "invoiceMntTrack" }, { ref: "jpyMnt" }],
+    },
+  },
+};
+
+function configVariables(config) {
+  const vars = {};
+  const source = config && typeof config === "object" ? config.variables : null;
+  if (!source || typeof source !== "object") return vars;
+  for (const [key, item] of Object.entries(source)) {
+    const value = item && typeof item === "object" && "value" in item ? item.value : item;
+    const n = Number(value);
+    if (Number.isFinite(n)) vars[key] = n;
+  }
+  return vars;
+}
+
+function roundByMode(value, mode) {
+  if (!Number.isFinite(value)) return 0;
+  if (mode === "floor") return Math.floor(value + 1e-9);
+  if (mode === "ceil") return Math.ceil(value - 1e-9);
+  if (mode === "none") return value;
+  return Math.round(value);
+}
+
+function tokenizeExpression(expr) {
+  const tokens = [];
+  const source = String(expr || "");
+  let i = 0;
+  while (i < source.length) {
+    const ch = source[i];
+    if (/\s/.test(ch)) {
+      i += 1;
+      continue;
+    }
+    if (/[()+\-*/]/.test(ch)) {
+      tokens.push({ type: ch, value: ch });
+      i += 1;
+      continue;
+    }
+    if (/\d|\./.test(ch)) {
+      let j = i + 1;
+      while (j < source.length && /[\d.]/.test(source[j])) j += 1;
+      tokens.push({ type: "number", value: Number(source.slice(i, j)) });
+      i = j;
+      continue;
+    }
+    if (/[A-Za-z_]/.test(ch)) {
+      let j = i + 1;
+      while (j < source.length && /[A-Za-z0-9_]/.test(source[j])) j += 1;
+      tokens.push({ type: "ref", value: source.slice(i, j) });
+      i = j;
+      continue;
+    }
+    throw new Error(`Недопустимый символ в формуле: ${ch}`);
+  }
+  return tokens;
+}
+
+function evaluateExpression(expr, context, formulas, memo, stack) {
+  const tokens = tokenizeExpression(expr);
+  let pos = 0;
+
+  function peek() {
+    return tokens[pos] || null;
+  }
+
+  function consume(type) {
+    const t = peek();
+    if (!t || t.type !== type) return null;
+    pos += 1;
+    return t;
+  }
+
+  function factor() {
+    if (consume("+")) return factor();
+    if (consume("-")) return -factor();
+    const n = consume("number");
+    if (n) {
+      if (!Number.isFinite(n.value)) throw new Error("Некорректное число в формуле");
+      return n.value;
+    }
+    const ref = consume("ref");
+    if (ref) return resolveFormulaRef(ref.value, context, formulas, memo, stack);
+    if (consume("(")) {
+      const v = expression();
+      if (!consume(")")) throw new Error("Не закрыта скобка в формуле");
+      return v;
+    }
+    throw new Error("Не удалось прочитать формулу");
+  }
+
+  function term() {
+    let value = factor();
+    while (true) {
+      if (consume("*")) value *= factor();
+      else if (consume("/")) {
+        const d = factor();
+        value = d !== 0 ? value / d : 0;
+      } else break;
+    }
+    return value;
+  }
+
+  function expression() {
+    let value = term();
+    while (true) {
+      if (consume("+")) value += term();
+      else if (consume("-")) value -= term();
+      else break;
+    }
+    return value;
+  }
+
+  const result = expression();
+  if (pos !== tokens.length) throw new Error("Лишние символы в конце формулы");
+  return result;
+}
+
+export function evaluateFormulaBlock(node, context, formulas = {}, memo = {}, stack = []) {
+  if (typeof node === "number") return Number.isFinite(node) ? node : 0;
+  if (typeof node === "string") return resolveFormulaRef(node, context, formulas, memo, stack);
+  if (!node || typeof node !== "object") return 0;
+  if (Object.prototype.hasOwnProperty.call(node, "value")) {
+    const n = Number(node.value);
+    return Number.isFinite(n) ? n : 0;
+  }
+  if (Object.prototype.hasOwnProperty.call(node, "ref")) {
+    return resolveFormulaRef(String(node.ref), context, formulas, memo, stack);
+  }
+
+  const op = String(node.op || "");
+  const args = Array.isArray(node.args) ? node.args : [];
+  let result = 0;
+
+  if (op === "sum") {
+    result = args.reduce((acc, item) => acc + evaluateFormulaBlock(item, context, formulas, memo, stack), 0);
+  } else if (op === "mul") {
+    result = args.reduce((acc, item) => acc * evaluateFormulaBlock(item, context, formulas, memo, stack), 1);
+  } else if (op === "div") {
+    const numerator = evaluateFormulaBlock(args[0], context, formulas, memo, stack);
+    const denominator = evaluateFormulaBlock(args[1], context, formulas, memo, stack);
+    result = Number.isFinite(denominator) && denominator !== 0 ? numerator / denominator : 0;
+  } else if (op === "percent") {
+    result =
+      evaluateFormulaBlock(node.base ?? args[0], context, formulas, memo, stack) *
+      (evaluateFormulaBlock(node.rate ?? args[1], context, formulas, memo, stack) / 100);
+  } else if (op === "max") {
+    result = Math.max(...args.map((item) => evaluateFormulaBlock(item, context, formulas, memo, stack)));
+  } else if (op === "min") {
+    result = Math.min(...args.map((item) => evaluateFormulaBlock(item, context, formulas, memo, stack)));
+  } else if (op === "round") {
+    result = roundByMode(evaluateFormulaBlock(node.arg ?? args[0], context, formulas, memo, stack), node.mode);
+  } else if (op === "table") {
+    const input = evaluateFormulaBlock(node.input, context, formulas, memo, stack);
+    const bands = Array.isArray(node.bands) ? node.bands : [];
+    const matched = bands.find((band) => Number.isFinite(Number(band.max)) && input <= Number(band.max));
+    if (matched) {
+      result = evaluateFormulaBlock(matched.value, context, formulas, memo, stack);
+    } else {
+      result = evaluateFormulaBlock(node.default, context, formulas, memo, stack);
+    }
+  } else if (op === "expr") {
+    result = evaluateExpression(node.expr, context, formulas, memo, stack);
+  }
+
+  return node.round ? roundByMode(result, node.round) : result;
+}
+
+function resolveFormulaRef(ref, context, formulas, memo, stack) {
+  if (Object.prototype.hasOwnProperty.call(context, ref)) {
+    const n = Number(context[ref]);
+    return Number.isFinite(n) ? n : 0;
+  }
+  if (Object.prototype.hasOwnProperty.call(memo, ref)) {
+    return memo[ref];
+  }
+  if (!Object.prototype.hasOwnProperty.call(formulas, ref)) {
+    return 0;
+  }
+  if (stack.includes(ref)) {
+    throw new Error(`Циклическая формула: ${[...stack, ref].join(" -> ")}`);
+  }
+  const value = evaluateFormulaBlock(formulas[ref], context, formulas, memo, [...stack, ref]);
+  memo[ref] = value;
+  context[ref] = value;
+  return value;
+}
+
+export function evaluateCalculationConfig(data, config = DEFAULT_CALCULATION_CONFIG) {
+  const vars = configVariables(config);
+  const context = { ...vars, ...data };
+  const usdMnt = Number(context.usdMnt);
+  const yenPerUsd = Number(context.yenPerUsd);
+  const rawJpyMnt = Number(context.jpyMnt);
+  const jpyMntBase =
+    Number.isFinite(rawJpyMnt) && rawJpyMnt > 0
+      ? rawJpyMnt
+      : Number.isFinite(usdMnt) && usdMnt > 0 && Number.isFinite(yenPerUsd) && yenPerUsd > 0
+        ? usdMnt / yenPerUsd
+        : 0;
+  const risk = Number(context.jpyMntRiskMarkup);
+  context.jpyMntBase = jpyMntBase;
+  context.jpyMnt = jpyMntBase + (Number.isFinite(risk) ? risk : 0);
+  context.mntPerRub = Number(context.mntPerRub);
+  context.usdMnt = Number.isFinite(usdMnt) && usdMnt > 0 ? usdMnt : 0;
+  context.rubPerYen =
+    context.jpyMnt > 0 && context.mntPerRub > 0 ? context.jpyMnt / context.mntPerRub : Number(data.rubPerYen);
+  context.rubPerUsd =
+    context.usdMnt > 0 && context.mntPerRub > 0 ? context.usdMnt / context.mntPerRub : Number(data.rubPerUsd);
+  context.yenPerUsd =
+    context.usdMnt > 0 && context.jpyMnt > 0 ? context.usdMnt / context.jpyMnt : Number(data.yenPerUsd);
+
+  const formulas = config && typeof config === "object" && config.formulas ? config.formulas : {};
+  const memo = {};
+  for (const key of Object.keys(formulas)) {
+    resolveFormulaRef(key, context, formulas, memo, []);
+  }
+  return { context, values: memo };
+}
+
 /**
  * @param {Record<string, unknown>} data — те же поля, что из readForm() в app.js
  */
-export function computeCalculation(data) {
-  const commission = auctionCommissionYen(data.auctionYen);
-  const japan = japanYenTotal(
-    data.auctionYen,
-    data.fobYen,
-    data.vanningYen,
-    commission
-  );
-  const rubYen = rubInvoiceToYen(
-    data.rubInInvoice,
-    data.rubPerUsd,
-    data.yenPerUsd
-  );
-  const usdTrainYen = usdToYen(data.usdTrain, data.yenPerUsd);
-  const usdTrackYen = usdToYen(data.usdTrack, data.yenPerUsd);
-  const invoiceYenTrain = japan + usdTrainYen + rubYen;
-  const invoiceYenTrack = japan + usdTrackYen + rubYen;
-  const bankTrain = invoiceRubWithBankFee(invoiceYenTrain, data.rubPerYen);
-  const bankTrack = invoiceRubWithBankFee(invoiceYenTrack, data.rubPerYen);
-  const customsTrain = customsBlockBreakdown(data, invoiceYenTrain);
-  const customsTrack = customsBlockBreakdown(data, invoiceYenTrack);
-  const lab = Number.isFinite(data.labRub) ? data.labRub : 0;
+export function computeCalculation(data, config = DEFAULT_CALCULATION_CONFIG) {
+  const evaluated = evaluateCalculationConfig(data, config);
+  const v = evaluated.context;
+  const commission = roundByMode(Number(v.auctionCommissionYen), "nearest");
+  const japan = roundByMode(Number(v.japanYenTotal), "nearest");
+  const rubYen = rubInvoiceToYen(v.rubInInvoice, v.rubPerUsd, v.yenPerUsd);
+  const usdTrainYen = usdToYen(v.trainDeliveryUsd, v.yenPerUsd);
+  const usdTrackYen = usdToYen(v.trackDeliveryUsd, v.yenPerUsd);
+  const invoiceYenTrain = roundByMode(Number(v.invoiceYenTrain), "nearest");
+  const invoiceYenTrack = roundByMode(Number(v.invoiceYenTrack), "nearest");
+  const agentFeeRub =
+    Number(v.agentFixedMnt) > 0 && Number(v.mntPerRub) > 0 ? Number(v.agentFixedMnt) / Number(v.mntPerRub) : 0;
+  const bankTrain = {
+    baseRub: roundByMode(Number(v.invoiceMntTrain) / Number(v.mntPerRub), "nearest"),
+    feeRub: roundByMode(agentFeeRub, "nearest"),
+    totalRub: roundByMode(Number(v.invoiceRubTrain), "nearest"),
+  };
+  const bankTrack = {
+    baseRub: roundByMode(Number(v.invoiceMntTrack) / Number(v.mntPerRub), "nearest"),
+    feeRub: roundByMode(agentFeeRub, "nearest"),
+    totalRub: roundByMode(Number(v.invoiceRubTrack), "nearest"),
+  };
+  const customsData = { ...data, rubPerYen: v.rubPerYen };
+  const customsTrain = customsBlockBreakdown(customsData, invoiceYenTrain);
+  const customsTrack = customsBlockBreakdown(customsData, invoiceYenTrack);
+  const lab = Number.isFinite(Number(v.labRub)) ? Number(v.labRub) : 0;
   const grandTrain = bankTrain.totalRub + customsTrain.totalRub + lab;
   const grandTrack = bankTrack.totalRub + customsTrack.totalRub + lab;
 
   return {
-    inputs: { ...data },
+    config: {
+      id: config?.id ?? null,
+      versionId: config?.versionId ?? null,
+      name: config?.name ?? null,
+    },
+    inputs: { ...data, rubPerYen: v.rubPerYen, rubPerUsd: v.rubPerUsd, yenPerUsd: v.yenPerUsd },
     outputs: {
       auctionCommissionYen: commission,
       japanYenTotal: japan,
       rubInvoiceYenEquivalent: rubYen,
+      rubInvoiceMntEquivalent: roundByMode(Number(v.rubInvoiceMntEquivalent), "nearest"),
       usdTrainYen,
       usdTrackYen,
       invoiceYenTrain,
       invoiceYenTrack,
+      jpyMnt: v.jpyMnt,
+      usdMnt: v.usdMnt,
+      mntPerRub: v.mntPerRub,
+      japanMntTotal: roundByMode(Number(v.japanMntTotal), "nearest"),
+      trainDeliveryMnt: roundByMode(Number(v.trainDeliveryMnt), "nearest"),
+      trackDeliveryMnt: roundByMode(Number(v.trackDeliveryMnt), "nearest"),
+      invoiceMntTrain: roundByMode(Number(v.invoiceMntTrain), "nearest"),
+      invoiceMntTrack: roundByMode(Number(v.invoiceMntTrack), "nearest"),
+      payableMntTrain: roundByMode(Number(v.payableMntTrain), "nearest"),
+      payableMntTrack: roundByMode(Number(v.payableMntTrack), "nearest"),
       bankTrain,
       bankTrack,
       customsTrain,

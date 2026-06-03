@@ -40,6 +40,12 @@ $atb = is_array($data['atb'] ?? null) ? $data['atb'] : [];
 $cbr = is_array($data['cbr'] ?? null) ? $data['cbr'] : [];
 
 $yenPerUsd = isset($khan['yenPerUsd']) && is_numeric($khan['yenPerUsd']) ? (float) $khan['yenPerUsd'] : null;
+$usdMnt = isset($khan['usdMnt']) && is_numeric($khan['usdMnt'])
+    ? (float) $khan['usdMnt']
+    : (isset($khan['usdNonCashSellMnt']) && is_numeric($khan['usdNonCashSellMnt']) ? (float) $khan['usdNonCashSellMnt'] : null);
+$jpyMnt = isset($khan['jpyMnt']) && is_numeric($khan['jpyMnt'])
+    ? (float) $khan['jpyMnt']
+    : (isset($khan['jpyNonCashBuyMnt']) && is_numeric($khan['jpyNonCashBuyMnt']) ? (float) $khan['jpyNonCashBuyMnt'] : null);
 $rubPerUsd = isset($atb['rubPerUsd']) && is_numeric($atb['rubPerUsd']) ? (float) $atb['rubPerUsd'] : null;
 $rubPerYen = isset($atb['rubPerYen']) && is_numeric($atb['rubPerYen']) && (float) $atb['rubPerYen'] > 0
     ? (float) $atb['rubPerYen']
@@ -47,8 +53,8 @@ $rubPerYen = isset($atb['rubPerYen']) && is_numeric($atb['rubPerYen']) && (float
 $rubPerEur = isset($cbr['rubPerEur']) && is_numeric($cbr['rubPerEur']) ? (float) $cbr['rubPerEur'] : null;
 
 $complete =
-    $yenPerUsd !== null && $yenPerUsd > 0
-    && $rubPerUsd !== null && $rubPerUsd > 0
+    $usdMnt !== null && $usdMnt > 0
+    && $jpyMnt !== null && $jpyMnt > 0
     && $rubPerEur !== null && $rubPerEur > 0;
 
 echo json_encode([
@@ -57,6 +63,8 @@ echo json_encode([
     'fetchedAt' => $fetchedAt,
     'ageSec' => $ageSec,
     'yenPerUsd' => $yenPerUsd,
+    'usdMnt' => $usdMnt,
+    'jpyMnt' => $jpyMnt,
     'rubPerUsd' => $rubPerUsd,
     'rubPerYen' => $rubPerYen,
     'rubPerEur' => $rubPerEur,
