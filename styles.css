@@ -273,31 +273,10 @@ h1 {
   width: 2.15rem;
   height: 2.15rem;
   border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  color: #0b1020;
-  text-transform: uppercase;
+  display: block;
+  object-fit: cover;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
   user-select: none;
-}
-
-.rate__icon--usd {
-  background: linear-gradient(135deg, #5b8cff 0%, #7bd3ff 100%);
-}
-
-.rate__icon--eur {
-  background: linear-gradient(135deg, #ffd56a 0%, #ffb14a 100%);
-}
-
-.rate__icon--jpy {
-  background: linear-gradient(135deg, #ff7a7a 0%, #ffb3b3 100%);
-}
-
-.rate__icon--rub {
-  background: linear-gradient(135deg, #3ecf8e 0%, #9df0c8 100%);
 }
 
 .rate__label {
