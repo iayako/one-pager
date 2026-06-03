@@ -236,27 +236,27 @@ export const DEFAULT_CALCULATION_CONFIG = {
   resultRows: {
     japanMntTotal: {
       label: "Расходы по Японии, ₮",
-      description: "Цена авто, FOB, Extra fee, Vanning, перевод в тугрики и фиксированная комиссия.",
+      description: "",
     },
     deliveryMnt: {
       label: "Расходы до Монголии, ₮",
-      description: "Контейнер, документы, сопровождение границы и автовоз по выбранному маршруту.",
+      description: "",
     },
     rubInvoiceMntEquivalent: {
       label: "Таможенная очистка в инвойсе, ₮",
-      description: "Рублёвая сумма очистки, переведённая в тугрики по ручному курсу.",
+      description: "",
     },
     invoiceMnt: {
       label: "Инвойс до комиссии посредника, ₮",
-      description: "Сумма японской части и доставки до добавления комиссии посредника.",
+      description: "",
     },
     invoiceRub: {
       label: "Оплата по инвойсу в рублях с комиссией посредника, ₽",
-      description: "Инвойс в тугриках плюс комиссия посредника, делённые на курс ₮/₽.",
+      description: "",
     },
     customs: {
       label: "Таможенный платёж, пошлина и утилизационный сбор, ₽",
-      description: "Таможенный блок считается по действующим правилам и не меняется в админке формул.",
+      description: "",
     },
     lab: {
       label: "ЭПТС и СБКТС, ₽",
@@ -264,7 +264,7 @@ export const DEFAULT_CALCULATION_CONFIG = {
     },
     grandTotal: {
       label: "Итоговая сумма, ₽",
-      description: "Инвойс, таможенные платежи и лаборатория.",
+      description: "",
     },
   },
   formulas: {
