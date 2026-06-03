@@ -273,27 +273,10 @@ h1 {
   width: 2.15rem;
   height: 2.15rem;
   border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  color: #0b1020;
-  text-transform: uppercase;
+  display: block;
+  object-fit: cover;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
   user-select: none;
-}
-
-.rate__icon--usd {
-  background: linear-gradient(135deg, #5b8cff 0%, #7bd3ff 100%);
-}
-
-.rate__icon--eur {
-  background: linear-gradient(135deg, #ffd56a 0%, #ffb14a 100%);
-}
-
-.rate__icon--jpy {
-  background: linear-gradient(135deg, #ff7a7a 0%, #ffb3b3 100%);
 }
 
 .rate__label {
@@ -381,6 +364,7 @@ h1 {
 input[type="number"],
 input[type="text"],
 input[type="tel"],
+input[type="password"],
 select {
   font-family: inherit;
   font-size: 0.95rem;
@@ -396,6 +380,7 @@ select {
 input:focus,
 input[type="text"]:focus,
 input[type="tel"]:focus,
+input[type="password"]:focus,
 select:focus {
   outline: none;
   border-color: rgba(91, 140, 255, 0.55);
@@ -419,13 +404,33 @@ input::placeholder {
 }
 
 .auction-picker__row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.65rem;
+  position: relative;
 }
 
-.btn--pick {
-  white-space: nowrap;
+.auction-picker__row::after {
+  content: "";
+  position: absolute;
+  right: 0.95rem;
+  top: 50%;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: translateY(-65%) rotate(45deg);
+  pointer-events: none;
+}
+
+#auction-name {
+  width: 100%;
+  padding-right: 2.5rem;
+  cursor: pointer;
+}
+
+#auction-name:hover {
+  border-color: rgba(91, 140, 255, 0.35);
+  background:
+    linear-gradient(135deg, rgba(91, 140, 255, 0.08), transparent 55%),
+    var(--surface);
 }
 
 .auction-picker__fob {

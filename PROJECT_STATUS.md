@@ -29,6 +29,7 @@
 - [x] **Логирование расчётов в БД:** `api/save_calculation.php` принимает POST с `inputs` / `outputs`; фронт вызывает после каждого успешного `render` (ошибки игнорируются). Схема таблицы — `api/schema.sql` (`calculation_log`). На сервере таблицу нужно создать вручную, если ещё не выполнен SQL.
 - [x] **Заявки с сайта:** `api/save_lead.php` + таблица `lead_request` (расширение полей — `api/migration_lead_client_fields.sql`); форма в `index.html` отправляет контакты и привязку к последнему расчёту.
 - [x] **Telegram-бот (CLI, systemd):** `api/telegram_bot.php` — заявки `/leads`, карточка заявки с кнопкой связанного расчёта, `/id`, `/last`; токен в `api/telegram_config.php` (в Git не коммитится).
+- [x] **Админка формул:** `admin.html` / `admin.js` + PHP endpoint’ы `api/admin_*.php`; владелец сайта меняет переменные и JSON-блоки формул, сохраняет черновик и публикует активную версию. Публичный калькулятор получает схему через `api/calculation_config.php`.
 
 ---
 
@@ -66,6 +67,7 @@
 
 - [x] API сохранения расчёта: `api/save_calculation.php` + таблица `calculation_log` (см. `api/schema.sql`); вызов с фронта при каждом пересчёте.
 - [ ] На проде убедиться, что `schema.sql` применён и запись в лог не падает с 503.
+- [ ] На проде выполнить `api/migration_admin_calculation_builder.sql`, добавить `admin_setup_token` в `api/config.php`, создать первого администратора через `admin.html`.
 - [x] Просмотр заявок и расчётов в Telegram-боте (см. выше). Отдельной веб-админки / выгрузки логов нет.
 
 ### Интерфейс

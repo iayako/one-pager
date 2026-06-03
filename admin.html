@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Админка расчёта УУС АВТО</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css?v=6" />
+  <link rel="stylesheet" href="./admin.css?v=6" />
+</head>
+<body>
+  <main class="page admin-page">
+    <header class="header">
+      <div class="header__text">
+        <p class="eyebrow">Админка</p>
+        <h1>Настройка логики калькулятора</h1>
+        <p class="admin-muted">Меняйте переменные и блоки формул, проверяйте расчёт на примере, затем публикуйте активную версию для пользователей.</p>
+      </div>
+      <div class="header__actions">
+        <a class="btn btn--ghost" href="./index.html">На сайт</a>
+        <button type="button" class="btn btn--ghost" id="btn-logout" hidden>Выйти</button>
+      </div>
+    </header>
+
+    <section class="panel admin-auth" id="auth-panel">
+      <h2 class="panel__title">Вход</h2>
+      <form class="admin-form" id="login-form">
+        <label class="field">
+          <span class="field__label">Логин</span>
+          <input type="text" name="username" autocomplete="username" required />
+        </label>
+        <label class="field">
+          <span class="field__label">Пароль</span>
+          <input type="password" name="password" autocomplete="current-password" required />
+        </label>
+        <button type="submit" class="btn btn--primary">Войти</button>
+      </form>
+
+      <details class="admin-setup">
+        <summary>Первый запуск: создать администратора</summary>
+        <form class="admin-form" id="setup-form">
+          <label class="field">
+            <span class="field__label">Setup token из api/config.php</span>
+            <input type="password" name="setupToken" required />
+          </label>
+          <label class="field">
+            <span class="field__label">Логин</span>
+            <input type="text" name="username" autocomplete="username" required />
+          </label>
+          <label class="field">
+            <span class="field__label">Пароль</span>
+            <input type="password" name="password" autocomplete="new-password" minlength="10" required />
+          </label>
+          <button type="submit" class="btn btn--ghost">Создать и войти</button>
+        </form>
+      </details>
+      <p class="lead-form__status" id="auth-status" aria-live="polite"></p>
+    </section>
+
+    <section class="admin-workspace" id="admin-workspace" hidden>
+      <section class="panel">
+        <div class="admin-toolbar">
+          <div>
+            <h2 class="panel__title">Активная схема</h2>
+            <p class="admin-muted" id="config-meta">—</p>
+          </div>
+          <div class="admin-toolbar__actions">
+            <button type="button" class="btn btn--ghost" id="btn-preview">Проверить</button>
+            <button type="button" class="btn btn--ghost" id="btn-save">Сохранить черновик</button>
+            <button type="button" class="btn btn--primary" id="btn-publish">Опубликовать</button>
+          </div>
+        </div>
+
+        <label class="field">
+          <span class="field__label">Название схемы</span>
+          <input type="text" id="config-name" maxlength="160" />
+        </label>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Курсы и надбавки</h2>
+        <p class="admin-muted">Самые частые ежедневные настройки: ручной курс обменника и риск к курсу йены.</p>
+        <div class="admin-table admin-table--rates" id="rates-table"></div>
+      </section>
+
+      <section class="panel">
+        <div class="admin-toolbar admin-toolbar--compact">
+          <div>
+            <h2 class="panel__title">Переменные</h2>
+            <p class="admin-muted">Это значения, которые владелец сможет менять без правки кода: курсы, комиссии, доставка и фиксированные суммы.</p>
+          </div>
+          <button type="button" class="btn btn--ghost" id="btn-add-variable">Добавить переменную</button>
+        </div>
+        <div class="admin-table" id="variables-table"></div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Формулы и подписи результата</h2>
+        <p class="admin-muted">В одном месте задаются формула, название строки и описание, которое увидит пользователь.</p>
+        <div class="admin-help">
+          <strong>Как писать формулы:</strong>
+          используйте названия переменных и результатов, знаки `+`, `-`, `*`, `/` и скобки.
+          Например: `japanMntTotal + trainDeliveryMnt`.
+        </div>
+        <div class="admin-formula-list" id="formulas-list"></div>
+        <button type="button" class="btn btn--ghost" id="btn-add-formula">Добавить формулу</button>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">Проверка на примере Excel</h2>
+        <div class="admin-preview" id="preview-output">Нажмите «Проверить».</div>
+      </section>
+
+      <p class="lead-form__status" id="admin-status" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <script type="module" src="./admin.js?v=9"></script>
+</body>
+</html>
