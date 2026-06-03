@@ -296,6 +296,10 @@ h1 {
   background: linear-gradient(135deg, #ff7a7a 0%, #ffb3b3 100%);
 }
 
+.rate__icon--rub {
+  background: linear-gradient(135deg, #3ecf8e 0%, #9df0c8 100%);
+}
+
 .rate__label {
   font-size: 0.78rem;
   font-weight: 600;

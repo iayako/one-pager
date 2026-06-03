@@ -408,12 +408,12 @@ function setRateDateText(id, dateLabel) {
   if (el) el.textContent = `Актуален на: ${normalizeRateDateLabel(dateLabel)}`;
 }
 
-function formatRate(n, digits) {
+function formatRate(n) {
   const v = Number(n);
   if (!Number.isFinite(v) || v <= 0) return "—";
   return v.toLocaleString("ru-RU", {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
 }
 
@@ -433,10 +433,10 @@ function updateRatesUIFromInputs() {
   const risk = numericConfigVariable(currentCalculationConfig, "jpyMntRiskMarkup") || 0;
   const jpyMnt = Number.isFinite(jpyMntRaw) && jpyMntRaw > 0 ? jpyMntRaw + risk : NaN;
 
-  setRateText("rate-yen-per-usd", formatRate(jpyMnt, 4));
-  setRateText("rate-rub-per-usd", formatRate(usdMnt, 2));
-  setRateText("rate-rub-per-yen", formatRate(mntPerRub, 4));
-  setRateText("rate-rub-per-eur", formatRate(rubPerEur, 4));
+  setRateText("rate-yen-per-usd", formatRate(jpyMnt));
+  setRateText("rate-rub-per-usd", formatRate(usdMnt));
+  setRateText("rate-rub-per-yen", formatRate(mntPerRub));
+  setRateText("rate-rub-per-eur", formatRate(rubPerEur));
 }
 
 function formatLocalDate(dt) {
@@ -803,7 +803,7 @@ function setKhanYenNote(data) {
   const jpy = data.jpyNonCashBuyMnt != null ? data.jpyNonCashBuyMnt : "—";
   const risk = numericConfigVariable(currentCalculationConfig, "jpyMntRiskMarkup") || 0;
   const jpyWithRisk = Number(data.jpyMnt);
-  const jpyLabel = Number.isFinite(jpyWithRisk) ? formatRate(jpyWithRisk + risk, 4) : "—";
+  const jpyLabel = Number.isFinite(jpyWithRisk) ? formatRate(jpyWithRisk + risk) : "—";
   el.textContent = `Khan Bank на ${d}: USD ${usd} ₮, JPY ${jpy} ₮ + риск ${risk} = ${jpyLabel} ₮/¥`;
 }
 
