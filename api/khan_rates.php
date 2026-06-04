@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 /**
  * Курсы Khan Bank (как на /personal/currency-rate/): JSON api/back/rates.
- * Нужные для калькулятора поля: USD sellRate (бэлэн бус зарах), JPY buyRate (бэлэн бус авах).
+ * Нужные для калькулятора поля:
+ * - USD sellRate — колонка «зарах» на сайте Khan (банк продаёт USD);
+ * - JPY buyRate — колонка «авах» на сайте Khan (банк покупает JPY при обмене ¥→₮).
  * GET ?date=YYYY-MM-DD — по Улан-Батору по умолчанию сегодня.
  */
 
@@ -182,6 +184,7 @@ if (!is_array($data)) {
 
 $usdSell = null;
 $jpyBuy = null;
+$jpySell = null;
 foreach ($data as $row) {
     if (!is_array($row)) {
         continue;
@@ -192,6 +195,7 @@ foreach ($data as $row) {
     }
     if ($cur === 'JPY') {
         $jpyBuy = isset($row['buyRate']) ? (float) $row['buyRate'] : null;
+        $jpySell = isset($row['sellRate']) ? (float) $row['sellRate'] : null;
     }
 }
 
@@ -206,6 +210,7 @@ echo json_encode([
     'date' => $dateParam,
     'usdNonCashSellMnt' => round($usdSell, 2),
     'jpyNonCashBuyMnt' => round($jpyBuy, 4),
+    'jpyNonCashSellMnt' => $jpySell !== null ? round($jpySell, 4) : null,
     'usdMnt' => round($usdSell, 2),
     'jpyMnt' => round($jpyBuy, 4),
     'yenPerUsd' => round($yenPerUsd, 4),
