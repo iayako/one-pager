@@ -13,7 +13,7 @@ const excelSample = {
   engineDisplacementCc: 2000,
   enginePowerHp: 150,
   usdMnt: 3577,
-  jpyMnt: 22.63,
+  jpyMnt: 22.14,
   rubPerEur: 84.0742,
 };
 
@@ -373,7 +373,7 @@ function previewConfig() {
   const sample = {
     ...excelSample,
     mntPerRub,
-    rubPerYen: (22.63 + Number(config.variables?.jpyMntRiskMarkup?.value || 0)) / mntPerRub,
+    rubPerYen: (Number(sample.jpyMnt) + Number(config.variables?.jpyMntRiskMarkup?.value || 0)) / mntPerRub,
   };
   const snap = computeCalculation(sample, config);
   const out = snap.outputs;
