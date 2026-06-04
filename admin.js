@@ -13,7 +13,7 @@ const excelSample = {
   engineDisplacementCc: 2000,
   enginePowerHp: 150,
   usdMnt: 3577,
-  jpyMnt: 22.14,
+  jpyMnt: 22.51,
   rubPerEur: 84.0742,
 };
 

@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Курсы Khan Bank (как на /personal/currency-rate/): JSON api/back/rates.
  * Нужные для калькулятора поля:
  * - USD sellRate — колонка «зарах» на сайте Khan (банк продаёт USD);
- * - JPY buyRate — колонка «авах» на сайте Khan (банк покупает JPY при обмене ¥→₮).
+ * - JPY sellRate — колонка «зарах» на сайте Khan (используется для ¥→₮ в калькуляторе).
  * GET ?date=YYYY-MM-DD — по Улан-Батору по умолчанию сегодня.
  */
 
@@ -199,11 +199,11 @@ foreach ($data as $row) {
     }
 }
 
-if ($usdSell === null || $jpyBuy === null || $usdSell <= 0 || $jpyBuy <= 0) {
+if ($usdSell === null || $jpySell === null || $usdSell <= 0 || $jpySell <= 0) {
     json_fail(502, 'В ответе Khan Bank нет USD/JPY');
 }
 
-$yenPerUsd = $usdSell / $jpyBuy;
+$yenPerUsd = $usdSell / $jpySell;
 
 echo json_encode([
     'ok' => true,
@@ -212,6 +212,6 @@ echo json_encode([
     'jpyNonCashBuyMnt' => round($jpyBuy, 4),
     'jpyNonCashSellMnt' => $jpySell !== null ? round($jpySell, 4) : null,
     'usdMnt' => round($usdSell, 2),
-    'jpyMnt' => round($jpyBuy, 4),
+    'jpyMnt' => round($jpySell, 4),
     'yenPerUsd' => round($yenPerUsd, 4),
 ], JSON_UNESCAPED_UNICODE);
