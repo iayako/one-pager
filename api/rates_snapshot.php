@@ -45,7 +45,9 @@ $usdMnt = isset($khan['usdMnt']) && is_numeric($khan['usdMnt'])
     : (isset($khan['usdNonCashSellMnt']) && is_numeric($khan['usdNonCashSellMnt']) ? (float) $khan['usdNonCashSellMnt'] : null);
 $jpyMnt = isset($khan['jpyMnt']) && is_numeric($khan['jpyMnt'])
     ? (float) $khan['jpyMnt']
-    : (isset($khan['jpyNonCashBuyMnt']) && is_numeric($khan['jpyNonCashBuyMnt']) ? (float) $khan['jpyNonCashBuyMnt'] : null);
+    : (isset($khan['jpyNonCashSellMnt']) && is_numeric($khan['jpyNonCashSellMnt'])
+        ? (float) $khan['jpyNonCashSellMnt']
+        : (isset($khan['jpyNonCashBuyMnt']) && is_numeric($khan['jpyNonCashBuyMnt']) ? (float) $khan['jpyNonCashBuyMnt'] : null));
 $rubPerUsd = isset($atb['rubPerUsd']) && is_numeric($atb['rubPerUsd']) ? (float) $atb['rubPerUsd'] : null;
 $rubPerYen = isset($atb['rubPerYen']) && is_numeric($atb['rubPerYen']) && (float) $atb['rubPerYen'] > 0
     ? (float) $atb['rubPerYen']

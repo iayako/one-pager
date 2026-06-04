@@ -830,7 +830,7 @@ function setKhanYenNote(data) {
   }
   const d = data.date || "—";
   const usd = data.usdNonCashSellMnt != null ? data.usdNonCashSellMnt : "—";
-  const jpy = data.jpyNonCashBuyMnt != null ? data.jpyNonCashBuyMnt : "—";
+  const jpy = data.jpyNonCashSellMnt != null ? data.jpyNonCashSellMnt : "—";
   const risk = numericConfigVariable(currentCalculationConfig, "jpyMntRiskMarkup") || 0;
   const jpyWithRisk = Number(data.jpyMnt);
   const jpyLabel = Number.isFinite(jpyWithRisk) ? formatRate(jpyWithRisk + risk) : "—";
