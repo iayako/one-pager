@@ -1,4 +1,4 @@
-import { DEFAULT_CALCULATION_CONFIG, computeCalculation } from "./calc-core.js?v=2";
+import { DEFAULT_CALCULATION_CONFIG, computeCalculation } from "./calc-core.js?v=3";
 
 let currentConfig = structuredClone(DEFAULT_CALCULATION_CONFIG);
 let currentUser = null;

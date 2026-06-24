@@ -73,21 +73,18 @@ export function customsClearanceFeeRub(customsValueRub) {
 }
 
 /**
- * Пошлина: авто до 3 лет — % от стоимости в € и минимум €/см³ (ТЗ).
- * По ТЗ в коридорах сравнивается **стоимость автомобиля** (цена в ¥), а не полный инвойс:
- * `round(цена_авто_¥ × (₽/¥))` → «стоимость в рублях» → `/(₽/€)` = эквивалент в € для выбора строки и доли.
+ * Пошлина: авто до 3 лет — % от стоимости в € и минимум €/см³ (ЕТС).
+ * База — **таможенная стоимость инвойса в ₽** (та же, что в сборе за оформление):
+ * `customsValueRub / (₽/€)` = эквивалент в € для выбора коридора и доли.
  */
-export function importDutyUnder3Rub(auctionYen, rubPerYen, rubPerEur, engineCc) {
-  const y = Number(auctionYen);
-  const rpy = Number(rubPerYen);
+export function importDutyUnder3Rub(customsValueRub, rubPerEur, engineCc) {
+  const valueRub = Number(customsValueRub);
   const eurRate = Number(rubPerEur);
   const cc = Number(engineCc);
-  if (!Number.isFinite(y) || y <= 0) return 0;
-  if (!Number.isFinite(rpy) || rpy <= 0) return 0;
+  if (!Number.isFinite(valueRub) || valueRub <= 0) return 0;
   if (!Number.isFinite(eurRate) || eurRate <= 0) return 0;
   if (!Number.isFinite(cc) || cc <= 0) return 0;
-  const vehicleValueRub = Math.round(y * rpy);
-  const priceEur = vehicleValueRub / eurRate;
+  const priceEur = valueRub / eurRate;
   let percent;
   let minEurPerCc;
   if (priceEur <= 8500) {
@@ -137,14 +134,9 @@ export function dutyEurPerCcOver5(engineCc) {
   return 5.7;
 }
 
-export function importDutyAgeRub(vehicleAge, data, engineCc) {
+export function importDutyAgeRub(vehicleAge, data, engineCc, customsValueRub) {
   if (vehicleAge === "under3") {
-    return importDutyUnder3Rub(
-      data.auctionYen,
-      data.rubPerYen,
-      data.rubPerEur,
-      engineCc
-    );
+    return importDutyUnder3Rub(customsValueRub, data.rubPerEur, engineCc);
   }
   const eurRate = Number(data.rubPerEur);
   const cc = Number(engineCc);
@@ -183,7 +175,8 @@ export function customsBlockBreakdown(data, invoiceYen) {
   const duty = importDutyAgeRub(
     data.vehicleAge,
     data,
-    data.engineDisplacementCc
+    data.engineDisplacementCc,
+    cv
   );
   const recycling = recyclingFeeRub(data.enginePowerHp, data.vehicleAge);
   return {
