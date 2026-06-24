@@ -29,6 +29,8 @@
 - [x] **Логирование расчётов в БД:** `api/save_calculation.php` принимает POST с `inputs` / `outputs`; фронт вызывает после каждого успешного `render` (ошибки игнорируются). Схема таблицы — `api/schema.sql` (`calculation_log`). На сервере таблицу нужно создать вручную, если ещё не выполнен SQL.
 - [x] **Заявки с сайта:** `api/save_lead.php` + таблица `lead_request` (расширение полей — `api/migration_lead_client_fields.sql`); форма в `index.html` отправляет контакты и привязку к последнему расчёту.
 - [x] **Telegram-бот (CLI, systemd):** `api/telegram_bot.php` — заявки `/leads`, карточка заявки с кнопкой связанного расчёта, `/id`, `/last`; токен в `api/telegram_config.php` (в Git не коммитится).
+- [x] **Push заявок менеджеру:** `api/telegram_notify.php` — `save_lead.php` шлёт карточку новой заявки в Telegram (`notify_chat_ids` в `telegram_config.php`). Прод за блокировкой Telegram: трафик идёт через прокси (`TELEGRAM_PROXY` для бота и PHP-FPM).
+- [x] **Заявки в Google-таблицу:** `api/google_sheets_notify.php` + Apps Script (`api/google_sheets_apps_script.gs`) — `save_lead.php` дублирует заявку строкой в таблицу для аналитики; настройки в `api/google_sheets_config.php` (в Git не коммитится).
 - [x] **Админка формул:** `admin.html` / `admin.js` + PHP endpoint’ы `api/admin_*.php`; владелец сайта меняет переменные и JSON-блоки формул, сохраняет черновик и публикует активную версию. Публичный калькулятор получает схему через `api/calculation_config.php`.
 
 ---

@@ -1,3 +1,4 @@
 api/config.php
 api/telegram_config.php
+api/google_sheets_config.php
 deploy-timeweb.zip

@@ -220,23 +220,37 @@ try {
         'id' => $leadId,
     ], JSON_UNESCAPED_UNICODE);
 
-    // Ответ сайту уже отдан; уведомление менеджеру шлём после, не задерживая клиента.
+    // Ответ сайту уже отдан; рассылку (Telegram + Google-таблица) делаем после,
+    // не задерживая клиента. Любые сбои не влияют на уже сохранённую заявку.
     if (function_exists('fastcgi_finish_request')) {
         fastcgi_finish_request();
     }
+
+    $leadData = [
+        'id' => $leadId,
+        'name' => $name !== '' ? $name : null,
+        'phone' => $phone,
+        'contactMethod' => $contactMethod,
+        'comment' => $comment !== '' ? $comment : null,
+        'vehicle' => $vehicle,
+        'snapshot' => is_array($calcSnapshot) ? $calcSnapshot : null,
+        'calculationLogId' => $calculationLogId,
+        'clientIp' => $ip,
+        'createdAt' => gmdate('Y-m-d H:i:s') . ' UTC',
+    ];
+
     try {
         require_once __DIR__ . '/telegram_notify.php';
-        telegram_notify_new_lead([
-            'id' => $leadId,
-            'name' => $name !== '' ? $name : null,
-            'phone' => $phone,
-            'contactMethod' => $contactMethod,
-            'comment' => $comment !== '' ? $comment : null,
-            'vehicle' => $vehicle,
-            'snapshot' => is_array($calcSnapshot) ? $calcSnapshot : null,
-        ]);
+        telegram_notify_new_lead($leadData);
     } catch (Throwable) {
         /* уведомление необязательно — заявка уже сохранена */
+    }
+
+    try {
+        require_once __DIR__ . '/google_sheets_notify.php';
+        google_sheets_append_lead($leadData);
+    } catch (Throwable) {
+        /* запись в таблицу необязательна — заявка уже сохранена */
     }
 } catch (PDOException $e) {
     $msg = $e->getMessage();
