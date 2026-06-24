@@ -373,7 +373,7 @@ function previewConfig() {
   const sample = {
     ...excelSample,
     mntPerRub,
-    rubPerYen: (Number(sample.jpyMnt) + Number(config.variables?.jpyMntRiskMarkup?.value || 0)) / mntPerRub,
+    rubPerYen: (Number(excelSample.jpyMnt) + Number(config.variables?.jpyMntRiskMarkup?.value || 0)) / mntPerRub,
   };
   const snap = computeCalculation(sample, config);
   const out = snap.outputs;
