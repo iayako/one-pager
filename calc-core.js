@@ -152,14 +152,14 @@ export function importDutyAgeRub(vehicleAge, data, engineCc, customsValueRub) {
 /**
  * Утилизационный сбор для физлиц (личное пользование). Мощность — в **л.с.**.
  * Базовая сумма до 160 л.с. зависит от возраста авто:
- *  - до 3 лет — **3 200 ₽**;
- *  - 3 года и старше — **5 200 ₽** (пример из ТЗ).
+ *  - до 3 лет — **3 400 ₽** (20 000 × 0,17);
+ *  - 3 года и старше — **5 200 ₽** (20 000 × 0,26, пример из ТЗ).
  * Свыше 160 л.с. — оценка по нарастающей шкале от базовой суммы (уточняйте у брокера).
  */
 export function recyclingFeeRub(engineHp, vehicleAge) {
   const hp = Number(engineHp);
   if (!Number.isFinite(hp) || hp <= 0) return 0;
-  const baseFee = vehicleAge === "under3" ? 3200 : 5200;
+  const baseFee = vehicleAge === "under3" ? 3400 : 5200;
   if (hp <= 160) return baseFee;
   const over = hp - 160;
   return Math.round(baseFee * (1 + (over / 160) ** 2 * 12));
