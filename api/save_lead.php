@@ -213,10 +213,31 @@ try {
         $vehicle['engine_hp'],
     ]);
 
+    $leadId = (int) $pdo->lastInsertId();
+
     echo json_encode([
         'ok' => true,
-        'id' => (int) $pdo->lastInsertId(),
+        'id' => $leadId,
     ], JSON_UNESCAPED_UNICODE);
+
+    // Ответ сайту уже отдан; уведомление менеджеру шлём после, не задерживая клиента.
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    }
+    try {
+        require_once __DIR__ . '/telegram_notify.php';
+        telegram_notify_new_lead([
+            'id' => $leadId,
+            'name' => $name !== '' ? $name : null,
+            'phone' => $phone,
+            'contactMethod' => $contactMethod,
+            'comment' => $comment !== '' ? $comment : null,
+            'vehicle' => $vehicle,
+            'snapshot' => is_array($calcSnapshot) ? $calcSnapshot : null,
+        ]);
+    } catch (Throwable) {
+        /* уведомление необязательно — заявка уже сохранена */
+    }
 } catch (PDOException $e) {
     $msg = $e->getMessage();
     $code = (string) $e->getCode();
