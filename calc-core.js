@@ -158,17 +158,19 @@ export function importDutyAgeRub(vehicleAge, data, engineCc) {
 }
 
 /**
- * Утилизационный сбор (ТЗ: пример 20 000 × 0,26 при мощности до 160 л.с.).
- * Мощность вводится в **л.с.** (как в ТЗ). От возраста авто не зависит — один коэфф. 0,26.
- * Свыше 160 л.с. — оценка по нарастающей шкале (уточняйте у брокера).
+ * Утилизационный сбор для физлиц (личное пользование). Мощность — в **л.с.**.
+ * Базовая сумма до 160 л.с. зависит от возраста авто:
+ *  - до 3 лет — **3 200 ₽**;
+ *  - 3 года и старше — **5 200 ₽** (пример из ТЗ).
+ * Свыше 160 л.с. — оценка по нарастающей шкале от базовой суммы (уточняйте у брокера).
  */
-export function recyclingFeeRub(engineHp) {
+export function recyclingFeeRub(engineHp, vehicleAge) {
   const hp = Number(engineHp);
   if (!Number.isFinite(hp) || hp <= 0) return 0;
-  const coef = 0.26;
-  if (hp <= 160) return Math.round(20000 * coef);
+  const baseFee = vehicleAge === "under3" ? 3200 : 5200;
+  if (hp <= 160) return baseFee;
   const over = hp - 160;
-  return Math.round(20000 * coef * (1 + (over / 160) ** 2 * 12));
+  return Math.round(baseFee * (1 + (over / 160) ** 2 * 12));
 }
 
 /**
@@ -183,7 +185,7 @@ export function customsBlockBreakdown(data, invoiceYen) {
     data,
     data.engineDisplacementCc
   );
-  const recycling = recyclingFeeRub(data.enginePowerHp);
+  const recycling = recyclingFeeRub(data.enginePowerHp, data.vehicleAge);
   return {
     customsValueRub: cv,
     clearanceFeeRub: fee,

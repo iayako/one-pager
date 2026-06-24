@@ -2,7 +2,7 @@
  * Калькулятор по ТЗ: инвойс ¥/₽, комиссия АТБ, итог с таможней и лабораторией.
  */
 
-import { DEFAULT_CALCULATION_CONFIG, computeCalculation } from "./calc-core.js";
+import { DEFAULT_CALCULATION_CONFIG, computeCalculation } from "./calc-core.js?v=2";
 
 const THEME_STORAGE_KEY = "calculator-theme";
 const AUCTION_OPTIONS = [
