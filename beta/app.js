@@ -1,12 +1,14 @@
 /**
  * Бета: подбор авто одной формой в стиле дром.ру
  * (марка → модель → поколение в модальном окне по фото → топливо/КПП/двигатель → расчёт).
- * Формула и курсы — те же, что на основном калькуляторе: calc-core.js,
- * api/calculation_config.php (активная схема из админки) и api/rates_snapshot.php.
+ * Формула, курсы, тема и оформление — те же, что на основном калькуляторе:
+ * calc-core.js, api/calculation_config.php, api/rates_snapshot.php, ../styles.css.
  */
 
 import { DEFAULT_CALCULATION_CONFIG, computeCalculation } from "../calc-core.js";
 import { CATALOG, FUEL_LABELS } from "./catalog.js";
+
+const THEME_STORAGE_KEY = "calculator-theme";
 
 /** Примерные курсы на случай недоступности API (страница вне прода / локальный запуск). */
 const FALLBACK_RATES = { usdMnt: 3600, jpyMnt: 24.5, rubPerEur: 95 };
@@ -36,6 +38,7 @@ const state = {
   config: DEFAULT_CALCULATION_CONFIG,
   rates: null,
   ratesLive: false,
+  ratesFetchedAt: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -43,6 +46,47 @@ const $ = (id) => document.getElementById(id);
 function formatRub(value) {
   if (!Number.isFinite(value)) return "—";
   return `${Math.round(value).toLocaleString("ru-RU")} ₽`;
+}
+
+function formatRate(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v) || v <= 0) return "—";
+  return v.toLocaleString("ru-RU", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/** ISO или Date → строка вида «02.07.2026, 15:45:01 GMT+3» (Europe/Moscow), как на главной. */
+function formatInstantRuWithTimeZone(isoOrDate) {
+  const d = isoOrDate instanceof Date ? isoOrDate : new Date(isoOrDate);
+  if (Number.isNaN(d.getTime())) {
+    const s = String(isoOrDate || "").trim();
+    return s || "—";
+  }
+  try {
+    return new Intl.DateTimeFormat("ru-RU", {
+      timeZone: "Europe/Moscow",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+      timeZoneName: "shortOffset",
+    }).format(d);
+  } catch {
+    return d.toLocaleString("ru-RU");
+  }
+}
+
+function numericConfigVariable(config, key) {
+  const vars = config && typeof config === "object" ? config.variables : null;
+  const item = vars && typeof vars === "object" ? vars[key] : null;
+  const raw = item && typeof item === "object" && "value" in item ? item.value : item;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
 }
 
 function setOptions(select, placeholder, items) {
@@ -59,12 +103,73 @@ function setOptions(select, placeholder, items) {
   });
 }
 
+/* ---------- тема (как на главной, общий ключ localStorage) ---------- */
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  const toggle = $("theme-toggle");
+  if (toggle) {
+    const icon =
+      theme === "dark"
+        ? `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v1.2a1 1 0 1 1-2 0V4a1 1 0 0 1 1-1Zm0 16.8a1 1 0 0 1 1 1V22a1 1 0 1 1-2 0v-1.2a1 1 0 0 1 1-1ZM4 11a1 1 0 0 1 1 1 7 7 0 0 0 7 7 1 1 0 1 1 0 2A9 9 0 0 1 3 12a1 1 0 0 1 1-1Zm17-1a1 1 0 0 1 1 1 9 9 0 0 1-9 9 1 1 0 1 1 0-2 7 7 0 0 0 7-7 1 1 0 0 1 1-1ZM6.22 6.22a1 1 0 0 1 1.42 0l.85.85a1 1 0 1 1-1.42 1.42l-.85-.85a1 1 0 0 1 0-1.42Zm10.44 10.44a1 1 0 0 1 1.42 0l.85.85a1 1 0 0 1-1.42 1.42l-.85-.85a1 1 0 0 1 0-1.42ZM3 12a1 1 0 0 1 1-1h1.2a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1Zm16.8 0a1 1 0 0 1 1-1H22a1 1 0 1 1 0 2h-1.2a1 1 0 0 1-1-1ZM6.22 17.78a1 1 0 0 1 0-1.42l.85-.85a1 1 0 1 1 1.42 1.42l-.85.85a1 1 0 0 1-1.42 0Zm10.44-10.44a1 1 0 0 1 0-1.42l.85-.85a1 1 0 0 1 1.42 1.42l-.85.85a1 1 0 0 1-1.42 0ZM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" fill="currentColor"/></svg>`
+        : `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 13.7a8.2 8.2 0 0 1-10.7-10 1 1 0 0 0-1.35-1.18A10 10 0 1 0 22.18 15a1 1 0 0 0-1.18-1.3Z" fill="currentColor"/></svg>`;
+    toggle.innerHTML = `${icon}<span class="sr-only">Переключить тему</span>`;
+    toggle.setAttribute("aria-label", theme === "dark" ? "Светлая тема" : "Тёмная тема");
+  }
+}
+
+function initTheme() {
+  let saved = null;
+  try {
+    saved = localStorage.getItem(THEME_STORAGE_KEY);
+  } catch {
+    /* приватный режим / блокировка storage */
+  }
+  const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  applyTheme(saved || (systemDark ? "dark" : "light"));
+
+  const toggle = $("theme-toggle");
+  if (!toggle) return;
+  toggle.addEventListener("click", () => {
+    const current = document.documentElement.getAttribute("data-theme") || "dark";
+    const next = current === "dark" ? "light" : "dark";
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, next);
+    } catch {
+      /* noop */
+    }
+    applyTheme(next);
+  });
+}
+
 /* ---------- курсы и конфиг ---------- */
 
 async function fetchJson(url) {
   const resp = await fetch(url, { cache: "no-store" });
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   return resp.json();
+}
+
+function renderRatesPanel() {
+  const risk = numericConfigVariable(state.config, "jpyMntRiskMarkup") || 0;
+  const mntPerRub = numericConfigVariable(state.config, "mntPerRub");
+  const r = state.rates;
+
+  $("rate-rub-per-usd").textContent = formatRate(r.usdMnt);
+  $("rate-yen-per-usd").textContent = formatRate(r.jpyMnt + risk);
+  $("rate-rub-per-yen").textContent = formatRate(mntPerRub);
+  $("rate-rub-per-eur").textContent = formatRate(r.rubPerEur);
+
+  const meta = $("rate-date-common");
+  if (state.ratesLive) {
+    meta.textContent = `Актуален на: ${
+      state.ratesFetchedAt ? formatInstantRuWithTimeZone(state.ratesFetchedAt) : "—"
+    }`;
+    meta.classList.remove("rates-meta--warn");
+  } else {
+    meta.textContent = "Не удалось получить актуальные курсы — расчёт по примерным значениям.";
+    meta.classList.add("rates-meta--warn");
+  }
 }
 
 async function loadConfigAndRates() {
@@ -85,20 +190,14 @@ async function loadConfigAndRates() {
     ) {
       state.rates = { usdMnt: snap.usdMnt, jpyMnt: snap.jpyMnt, rubPerEur: snap.rubPerEur };
       state.ratesLive = true;
+      state.ratesFetchedAt = typeof snap.fetchedAt === "string" ? snap.fetchedAt : null;
     }
   } catch {
     /* обработано ниже */
   }
 
-  const line = $("rates-line");
-  if (state.ratesLive) {
-    const r = state.rates;
-    line.textContent = `Курсы: $ ${r.usdMnt} ₮ · ¥ ${r.jpyMnt} ₮ · € ${r.rubPerEur} ₽`;
-  } else {
-    state.rates = { ...FALLBACK_RATES };
-    line.textContent = "Не удалось получить актуальные курсы — расчёт по примерным значениям.";
-    line.classList.add("rates-line--warn");
-  }
+  if (!state.ratesLive) state.rates = { ...FALLBACK_RATES };
+  renderRatesPanel();
 }
 
 /* ---------- каскад формы ---------- */
@@ -132,7 +231,7 @@ function resetDownstreamOfModel() {
   setOptions($("fuel-select"), "Любое", []);
   setOptions($("gearbox-select"), "Любая", []);
   setOptions($("mod-select"), "Выберите двигатель", []);
-  $("step-result").classList.add("is-hidden");
+  $("step-result").classList.add("results--hidden");
   updateCalcButton();
 }
 
@@ -293,7 +392,8 @@ function pickedSummaryText() {
   return parts.join(" · ");
 }
 
-function resultCard(kind, title, bank, customs, lab, grand) {
+/** Карточка результата в разметке основного калькулятора (стили ../styles.css). */
+function resultCard(kind, badge, sub, bank, customs, lab, grand) {
   const rows = [
     ["Оплата по инвойсу, ₽", formatRub(bank.totalRub)],
     ["Таможенные платежи, ₽", formatRub(customs.totalRub)],
@@ -302,15 +402,19 @@ function resultCard(kind, title, bank, customs, lab, grand) {
     ["— утилизационный сбор", formatRub(customs.recyclingFeeRub)],
     ["ЭПТС и СБКТС, ₽", formatRub(lab)],
   ];
-  const card = document.createElement("div");
+  const card = document.createElement("article");
   card.className = `result-card result-card--${kind}`;
   card.innerHTML =
-    `<h3>${title}</h3><dl>` +
+    `<header class="result-card__head">` +
+    `<span class="result-card__badge">${badge}</span>` +
+    `<p class="result-card__sub">${sub}</p>` +
+    `</header>` +
+    `<dl class="result-list">` +
     rows
       .map(([dt, dd]) => `<div class="result-row"><dt>${dt}</dt><dd>${dd}</dd></div>`)
       .join("") +
-    `<div class="result-row result-row--total"><dt>Итого под ключ</dt><dd>${formatRub(grand)}</dd></div>` +
-    "</dl>";
+    `<div class="result-row result-row--accent result-row--total"><dt>Итоговая сумма, ₽</dt><dd>${formatRub(grand)}</dd></div>` +
+    `</dl>`;
   return card;
 }
 
@@ -337,16 +441,33 @@ function calculate() {
   const box = $("results");
   box.innerHTML = "";
   box.append(
-    resultCard("train", "Train (ж/д контейнер)", o.bankTrain, o.customsTrain, o.labRub, o.grandTotalTrainRub),
-    resultCard("track", "Track (автовоз)", o.bankTrack, o.customsTrack, o.labRub, o.grandTotalTrackRub)
+    resultCard(
+      "train",
+      "Train",
+      "TRAINMOD · 25–45 дней с погрузки в контейнер",
+      o.bankTrain,
+      o.customsTrain,
+      o.labRub,
+      o.grandTotalTrainRub
+    ),
+    resultCard(
+      "track",
+      "Track",
+      "TRACKMOD · до 25 дней с погрузки в контейнер",
+      o.bankTrack,
+      o.customsTrack,
+      o.labRub,
+      o.grandTotalTrackRub
+    )
   );
-  $("step-result").classList.remove("is-hidden");
+  $("step-result").classList.remove("results--hidden");
   $("step-result").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 /* ---------- init ---------- */
 
 function init() {
+  initTheme();
   setOptions($("make-select"), "Марка", CATALOG.map((m) => ({ value: m.make, label: m.make })));
 
   $("make-select").addEventListener("change", onMakeChange);

@@ -1,111 +1,47 @@
-:root {
-  --bg: #0c0f14;
-  --bg-elevated: #141922;
-  --surface: #1a2130;
-  --border: rgba(255, 255, 255, 0.08);
-  --text: #e8ecf4;
-  --muted: #8b95a8;
-  --accent-train: #3ecf8e;
-  --accent-train-dim: rgba(62, 207, 142, 0.15);
-  --accent-track: #f0a050;
-  --accent-track-dim: rgba(240, 160, 80, 0.15);
-  --primary: #5b8cff;
-  --primary-hover: #7aa3ff;
-  --radius: 14px;
-  --radius-sm: 10px;
-  --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
-  --font: "DM Sans", system-ui, sans-serif;
-}
+/*
+ * Бета «подбор авто»: только стили самой формы подбора и модалки поколений.
+ * База (тема, шапка, панели, курсы, поля, карточки результатов, футер) — ../styles.css прода.
+ */
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-html {
-  font-size: 16px;
-  -webkit-font-smoothing: antialiased;
-}
-
-body {
-  margin: 0;
-  min-height: 100vh;
-  font-family: var(--font);
-  color: var(--text);
-  background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(91, 140, 255, 0.12), transparent 55%),
-    radial-gradient(900px 500px at 100% 20%, rgba(62, 207, 142, 0.08), transparent 50%),
-    var(--bg);
-  line-height: 1.5;
-}
-
-.page {
-  max-width: 980px;
-  margin: 0 auto;
-  padding: 2.5rem 1.25rem 3rem;
-}
-
-.head h1 {
-  margin: 0 0 0.35rem;
-  font-size: 1.7rem;
-}
-
-.head__badge {
+.beta-badge {
   display: inline-block;
   vertical-align: middle;
   margin-left: 0.4rem;
   padding: 0.1rem 0.55rem;
   border-radius: 999px;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--primary-hover);
   border: 1px solid var(--primary);
 }
 
-.head__sub {
+.header__sub {
   margin: 0;
   color: var(--muted);
+  font-size: 0.9rem;
 }
 
-.head__sub a {
+.header__sub a {
   color: var(--primary-hover);
   text-decoration: none;
 }
 
-.rates-line {
-  margin: 0.6rem 0 0;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.rates-line--warn {
+.rates-meta--warn {
   color: var(--accent-track);
+  opacity: 1;
 }
 
-/* ---------- единая панель подбора (в стиле дром.ру) ---------- */
+/* ---------- панель подбора одной формой (в стиле дром.ру) ---------- */
 
-.panel {
-  margin-top: 1.6rem;
-  padding: 1.25rem;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+.picker-panel {
+  margin-top: 1.25rem;
 }
 
-.panel__grid {
+.picker-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.75rem;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  min-width: 0;
+  gap: 0.75rem 0.85rem;
 }
 
 .field--wide2 {
@@ -116,32 +52,8 @@ body {
   justify-content: flex-end;
 }
 
-.field__label {
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-
-.field input,
-.field select,
-.gen-trigger {
-  width: 100%;
-  padding: 0.6rem 0.7rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-}
-
-.field input:focus,
-.field select:focus,
-.gen-trigger:focus {
-  outline: none;
-  border-color: var(--primary);
-}
-
-.field input:disabled,
-.field select:disabled,
+.picker-grid input:disabled,
+.picker-grid select:disabled,
 .gen-trigger:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -152,8 +64,23 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   text-align: left;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.gen-trigger:focus {
+  outline: none;
+  border-color: rgba(91, 140, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(91, 140, 255, 0.15);
 }
 
 .gen-trigger__chevron {
@@ -168,7 +95,7 @@ body {
 
 .btn-show {
   width: 100%;
-  padding: 0.65rem 1.5rem;
+  padding: 0.7rem 1.5rem;
   border: none;
   border-radius: var(--radius-sm);
   background: #fff;
@@ -177,6 +104,12 @@ body {
   font-weight: 700;
   cursor: pointer;
   transition: opacity 0.15s;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="light"] .btn-show {
+  background: #101623;
+  color: #fff;
 }
 
 .btn-show:hover:not(:disabled) {
@@ -188,7 +121,7 @@ body {
   cursor: not-allowed;
 }
 
-.panel__footer {
+.picker-footer {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -203,12 +136,24 @@ body {
   background: none;
   color: var(--muted);
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   cursor: pointer;
 }
 
 .reset-link:hover {
   color: var(--text);
+}
+
+.picker-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.picked-summary {
+  margin: -0.4rem 0 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 /* ---------- модальное окно выбора поколения ---------- */
@@ -281,7 +226,7 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
-  color: var(--text);
+  color: #e8ecf4;
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -325,116 +270,14 @@ body {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
-/* ---------- результат ---------- */
-
-.step {
-  margin-top: 1.6rem;
-  padding: 1.25rem;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-}
-
-.step.is-hidden {
-  display: none;
-}
-
-.step h2 {
-  margin: 0 0 0.9rem;
-  font-size: 1.1rem;
-}
-
-.hint {
-  margin: 0.8rem 0 0;
-  font-size: 0.82rem;
-  color: var(--muted);
-}
-
-.hint--inline {
-  margin: 0;
-}
-
-.picked-summary {
-  margin: 0 0 1rem;
-  color: var(--muted);
-}
-
-.results {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 0.9rem;
-}
-
-.result-card {
-  padding: 1rem 1.1rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface);
-}
-
-.result-card--train {
-  border-color: var(--accent-train);
-  background: var(--accent-train-dim);
-}
-
-.result-card--track {
-  border-color: var(--accent-track);
-  background: var(--accent-track-dim);
-}
-
-.result-card h3 {
-  margin: 0 0 0.6rem;
-  font-size: 1rem;
-}
-
-.result-card dl {
-  margin: 0;
-}
-
-.result-card .result-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.8rem;
-  padding: 0.25rem 0;
-  font-size: 0.9rem;
-}
-
-.result-card .result-row dt {
-  color: var(--muted);
-}
-
-.result-card .result-row dd {
-  margin: 0;
-  white-space: nowrap;
-}
-
-.result-card .result-row--total {
-  border-top: 1px solid var(--border);
-  margin-top: 0.4rem;
-  padding-top: 0.55rem;
-  font-size: 1.02rem;
-  font-weight: 700;
-}
-
-.result-card .result-row--total dt {
-  color: var(--text);
-}
-
 @media (max-width: 720px) {
-  .panel__grid {
+  .picker-grid {
     grid-template-columns: 1fr 1fr;
-  }
-  .field--wide2 {
-    grid-column: span 2;
   }
 }
 
 @media (max-width: 480px) {
-  .page {
-    padding-top: 1.5rem;
-  }
-  .panel__grid {
+  .picker-grid {
     grid-template-columns: 1fr;
   }
   .field--wide2 {
