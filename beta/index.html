@@ -18,58 +18,82 @@
         <p class="rates-line" id="rates-line">Загружаем курсы валют…</p>
       </header>
 
-      <section class="step" id="step-make">
-        <h2><span class="step__num">1</span> Марка</h2>
-        <div class="chips" id="make-chips"></div>
-      </section>
+      <section class="panel">
+        <div class="panel__grid">
+          <label class="field">
+            <span class="field__label">Марка</span>
+            <select id="make-select">
+              <option value="">Марка</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field__label">Модель</span>
+            <select id="model-select" disabled>
+              <option value="">Модель</option>
+            </select>
+          </label>
+          <div class="field">
+            <span class="field__label">Поколение</span>
+            <button type="button" class="gen-trigger" id="gen-trigger" disabled>
+              <span id="gen-trigger-text">Поколение</span>
+              <span class="gen-trigger__chevron" aria-hidden="true">▾</span>
+            </button>
+          </div>
 
-      <section class="step is-hidden" id="step-model">
-        <h2><span class="step__num">2</span> Модель</h2>
-        <div class="chips" id="model-chips"></div>
-      </section>
-
-      <section class="step is-hidden" id="step-gen">
-        <h2><span class="step__num">3</span> Поколение</h2>
-        <div class="gen-grid" id="gen-grid"></div>
-      </section>
-
-      <section class="step is-hidden" id="step-mod">
-        <h2><span class="step__num">4</span> Модификация и год</h2>
-        <div class="mod-list" id="mod-list"></div>
-        <div class="row row--wrap">
           <label class="field">
             <span class="field__label">Год выпуска</span>
-            <select id="year-select"></select>
+            <select id="year-select" disabled>
+              <option value="">Год</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field__label">Топливо</span>
+            <select id="fuel-select" disabled>
+              <option value="">Любое</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field__label">КПП</span>
+            <select id="gearbox-select" disabled>
+              <option value="">Любая</option>
+            </select>
+          </label>
+
+          <label class="field field--wide2">
+            <span class="field__label">Двигатель (объём · мощность)</span>
+            <select id="mod-select" disabled>
+              <option value="">Выберите двигатель</option>
+            </select>
           </label>
           <label class="field">
             <span class="field__label">Возраст для таможни</span>
-            <select id="age-select">
+            <select id="age-select" disabled>
               <option value="under3">Младше 3 лет</option>
               <option value="3to5">От 3 до 5 лет</option>
               <option value="over5">Старше 5 лет</option>
             </select>
           </label>
-        </div>
-        <p class="hint">Возраст подставляется по году выпуска автоматически — на границе диапазона уточните дату выпуска.</p>
-      </section>
 
-      <section class="step is-hidden" id="step-price">
-        <h2><span class="step__num">5</span> Цена на аукционе</h2>
-        <div class="row row--wrap">
           <label class="field">
-            <span class="field__label">Цена авто, ¥</span>
-            <input id="price-input" type="number" min="0" step="10000" placeholder="Например, 1 500 000" inputmode="numeric" />
+            <span class="field__label">Цена на аукционе, ¥</span>
+            <input id="price-input" type="number" min="0" step="10000" placeholder="1 500 000" inputmode="numeric" disabled />
           </label>
           <label class="field">
             <span class="field__label">Группа аукциона (FOB)</span>
-            <select id="fob-select">
-              <option value="90000" selected>Основные аукционы — 90 000 ¥</option>
+            <select id="fob-select" disabled>
+              <option value="90000" selected>Основные — 90 000 ¥</option>
               <option value="100000">Региональные — 100 000 ¥</option>
               <option value="110000">Удалённые — 110 000 ¥</option>
             </select>
           </label>
+          <div class="field field--submit">
+            <button class="btn-show" id="calc-btn" type="button" disabled>Рассчитать</button>
+          </div>
         </div>
-        <button class="btn-primary" id="calc-btn" type="button" disabled>Рассчитать стоимость</button>
+        <div class="panel__footer">
+          <button type="button" class="reset-link" id="reset-btn">✕ Сбросить всё</button>
+          <p class="hint hint--inline">Возраст подставляется по году выпуска — на границе диапазона уточните дату выпуска.</p>
+        </div>
       </section>
 
       <section class="step is-hidden" id="step-result">
@@ -82,6 +106,18 @@
         </p>
       </section>
     </main>
+
+    <div class="gen-modal is-hidden" id="gen-modal" role="dialog" aria-modal="true" aria-label="Выбор поколения">
+      <div class="gen-modal__backdrop" id="gen-modal-backdrop"></div>
+      <div class="gen-modal__window">
+        <div class="gen-modal__head">
+          <button type="button" class="gen-modal__close" id="gen-modal-close" aria-label="Закрыть">✕</button>
+          <span class="gen-modal__title" id="gen-modal-title">Поколение</span>
+        </div>
+        <div class="gen-modal__grid" id="gen-modal-grid"></div>
+      </div>
+    </div>
+
     <script type="module" src="./app.js"></script>
   </body>
 </html>

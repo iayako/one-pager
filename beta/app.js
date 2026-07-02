@@ -1,5 +1,6 @@
 /**
- * Бета: подбор авто (марка → модель → поколение → модификация) + ориентировочный расчёт.
+ * Бета: подбор авто одной формой в стиле дром.ру
+ * (марка → модель → поколение в модальном окне по фото → топливо/КПП/двигатель → расчёт).
  * Формула и курсы — те же, что на основном калькуляторе: calc-core.js,
  * api/calculation_config.php (активная схема из админки) и api/rates_snapshot.php.
  */
@@ -19,12 +20,19 @@ const PLACEHOLDER_PHOTO =
       "</svg>"
   );
 
+const GEARBOX_LABELS = {
+  CVT: "Вариатор",
+  "e-CVT": "e-CVT (гибрид)",
+  AT: "Автомат",
+  "7DCT": "Робот (DCT)",
+  MT: "Механика",
+};
+
 const state = {
   make: null,
   model: null,
   gen: null,
   mod: null,
-  year: null,
   config: DEFAULT_CALCULATION_CONFIG,
   rates: null,
   ratesLive: false,
@@ -32,13 +40,23 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
-function show(id, visible) {
-  $(id).classList.toggle("is-hidden", !visible);
-}
-
 function formatRub(value) {
   if (!Number.isFinite(value)) return "—";
   return `${Math.round(value).toLocaleString("ru-RU")} ₽`;
+}
+
+function setOptions(select, placeholder, items) {
+  select.innerHTML = "";
+  const first = document.createElement("option");
+  first.value = "";
+  first.textContent = placeholder;
+  select.appendChild(first);
+  items.forEach(({ value, label }) => {
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = label;
+    select.appendChild(opt);
+  });
 }
 
 /* ---------- курсы и конфиг ---------- */
@@ -83,88 +101,122 @@ async function loadConfigAndRates() {
   }
 }
 
-/* ---------- каскад выбора ---------- */
-
-function renderChips(containerId, items, selected, onPick) {
-  const box = $(containerId);
-  box.innerHTML = "";
-  items.forEach((item) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "chip" + (item === selected ? " is-active" : "");
-    btn.textContent = item;
-    btn.addEventListener("click", () => onPick(item));
-    box.appendChild(btn);
-  });
-}
+/* ---------- каскад формы ---------- */
 
 function genYearsText(gen) {
   return `${gen.yearFrom} – ${gen.yearTo ?? "н.в."}`;
 }
 
-function renderGenerations() {
-  const box = $("gen-grid");
-  box.innerHTML = "";
-  const model = state.model;
-  if (!model) return;
-  model.generations.forEach((gen) => {
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = "gen-card" + (gen === state.gen ? " is-active" : "");
-    const img = document.createElement("img");
-    img.loading = "lazy";
-    img.alt = `${state.make.make} ${model.name} ${gen.code}`;
-    img.src = gen.photo || PLACEHOLDER_PHOTO;
-    img.addEventListener("error", () => {
-      img.src = PLACEHOLDER_PHOTO;
-    });
-    const body = document.createElement("div");
-    body.className = "gen-card__body";
-    body.innerHTML =
-      `<div class="gen-card__years">${genYearsText(gen)}, ${gen.code}</div>` +
-      `<div class="gen-card__label">${gen.label}</div>`;
-    card.append(img, body);
-    card.addEventListener("click", () => pickGeneration(gen));
-    box.appendChild(card);
-  });
+function setGenTriggerText() {
+  const trigger = $("gen-trigger");
+  const text = $("gen-trigger-text");
+  if (state.gen) {
+    text.textContent = `${genYearsText(state.gen)}, ${state.gen.code}`;
+    trigger.classList.remove("is-placeholder");
+  } else {
+    text.textContent = "Поколение";
+    trigger.classList.add("is-placeholder");
+  }
 }
 
-function renderMods() {
-  const box = $("mod-list");
-  box.innerHTML = "";
-  const gen = state.gen;
-  if (!gen) return;
-  gen.mods.forEach((mod) => {
-    const item = document.createElement("button");
-    item.type = "button";
-    item.className = "mod-item" + (mod === state.mod ? " is-active" : "");
-    item.innerHTML =
-      `<span class="mod-item__name">${mod.name}</span>` +
-      `<span class="mod-item__spec">${FUEL_LABELS[mod.fuel] || mod.fuel}</span>` +
-      `<span class="mod-item__spec">${mod.gearbox}</span>` +
-      `<span class="mod-item__spec">${mod.cc.toLocaleString("ru-RU")} см³</span>` +
-      `<span class="mod-item__spec">${mod.hp} л.с.</span>` +
-      `<span class="mod-item__spec">${mod.drive}</span>`;
-    item.addEventListener("click", () => pickMod(mod));
-    box.appendChild(item);
-  });
+function resetDownstreamOfModel() {
+  state.gen = null;
+  state.mod = null;
+  setGenTriggerText();
+  ["year-select", "fuel-select", "gearbox-select", "mod-select", "age-select", "price-input", "fob-select"].forEach(
+    (id) => {
+      $(id).disabled = true;
+    }
+  );
+  setOptions($("year-select"), "Год", []);
+  setOptions($("fuel-select"), "Любое", []);
+  setOptions($("gearbox-select"), "Любая", []);
+  setOptions($("mod-select"), "Выберите двигатель", []);
+  $("step-result").classList.add("is-hidden");
+  updateCalcButton();
 }
 
-function renderYears() {
-  const select = $("year-select");
-  select.innerHTML = "";
-  const gen = state.gen;
-  if (!gen) return;
+function onMakeChange() {
+  const makeName = $("make-select").value;
+  state.make = CATALOG.find((m) => m.make === makeName) || null;
+  state.model = null;
+  const modelSelect = $("model-select");
+  setOptions(
+    modelSelect,
+    "Модель",
+    state.make ? state.make.models.map((m) => ({ value: m.name, label: m.name })) : []
+  );
+  modelSelect.disabled = !state.make;
+  $("gen-trigger").disabled = true;
+  resetDownstreamOfModel();
+}
+
+function onModelChange() {
+  const modelName = $("model-select").value;
+  state.model = state.make ? state.make.models.find((m) => m.name === modelName) || null : null;
+  $("gen-trigger").disabled = !state.model;
+  resetDownstreamOfModel();
+  if (state.model) openGenModal();
+}
+
+function pickGeneration(gen) {
+  state.gen = gen;
+  state.mod = null;
+  setGenTriggerText();
+  closeGenModal();
+
   const nowYear = new Date().getFullYear();
   const to = Math.min(gen.yearTo ?? nowYear, nowYear);
-  for (let y = to; y >= gen.yearFrom; y -= 1) {
-    const opt = document.createElement("option");
-    opt.value = String(y);
-    opt.textContent = String(y);
-    select.appendChild(opt);
-  }
-  state.year = Number(select.value);
+  const years = [];
+  for (let y = to; y >= gen.yearFrom; y -= 1) years.push({ value: String(y), label: String(y) });
+  setOptions($("year-select"), "Год", years);
+  $("year-select").value = years[0]?.value ?? "";
   syncAgeFromYear();
+
+  const fuels = [...new Set(gen.mods.map((m) => m.fuel))];
+  setOptions($("fuel-select"), "Любое", fuels.map((f) => ({ value: f, label: FUEL_LABELS[f] || f })));
+
+  const boxes = [...new Set(gen.mods.map((m) => m.gearbox))];
+  setOptions($("gearbox-select"), "Любая", boxes.map((g) => ({ value: g, label: GEARBOX_LABELS[g] || g })));
+
+  ["year-select", "fuel-select", "gearbox-select", "mod-select", "age-select", "price-input", "fob-select"].forEach(
+    (id) => {
+      $(id).disabled = false;
+    }
+  );
+  renderModOptions();
+  updateCalcButton();
+}
+
+function renderModOptions() {
+  const gen = state.gen;
+  if (!gen) return;
+  const fuel = $("fuel-select").value;
+  const gearbox = $("gearbox-select").value;
+  const items = gen.mods
+    .map((mod, idx) => ({ mod, idx }))
+    .filter(({ mod }) => (!fuel || mod.fuel === fuel) && (!gearbox || mod.gearbox === gearbox))
+    .map(({ mod, idx }) => ({
+      value: String(idx),
+      label:
+        `${mod.name} · ${mod.cc.toLocaleString("ru-RU")} см³ · ${mod.hp} л.с. · ` +
+        `${FUEL_LABELS[mod.fuel] || mod.fuel} · ${GEARBOX_LABELS[mod.gearbox] || mod.gearbox} · ${mod.drive}`,
+    }));
+  const select = $("mod-select");
+  const prev = state.mod ? String(gen.mods.indexOf(state.mod)) : "";
+  setOptions(select, "Выберите двигатель", items);
+  if (items.length === 1) {
+    select.value = items[0].value;
+  } else if (prev && items.some((i) => i.value === prev)) {
+    select.value = prev;
+  }
+  onModChange();
+}
+
+function onModChange() {
+  const idx = $("mod-select").value;
+  state.mod = idx === "" ? null : state.gen?.mods[Number(idx)] ?? null;
+  updateCalcButton();
 }
 
 function ageCategoryForYear(year) {
@@ -175,69 +227,54 @@ function ageCategoryForYear(year) {
 }
 
 function syncAgeFromYear() {
-  if (!state.year) return;
-  $("age-select").value = ageCategoryForYear(state.year);
-}
-
-/* ---------- обработчики шагов ---------- */
-
-function pickMake(makeName) {
-  state.make = CATALOG.find((m) => m.make === makeName) || null;
-  state.model = null;
-  state.gen = null;
-  state.mod = null;
-  renderChips("make-chips", CATALOG.map((m) => m.make), makeName, pickMake);
-  renderChips(
-    "model-chips",
-    state.make ? state.make.models.map((m) => m.name) : [],
-    null,
-    pickModel
-  );
-  show("step-model", Boolean(state.make));
-  show("step-gen", false);
-  show("step-mod", false);
-  show("step-price", false);
-  show("step-result", false);
-}
-
-function pickModel(modelName) {
-  state.model = state.make.models.find((m) => m.name === modelName) || null;
-  state.gen = null;
-  state.mod = null;
-  renderChips(
-    "model-chips",
-    state.make.models.map((m) => m.name),
-    modelName,
-    pickModel
-  );
-  renderGenerations();
-  show("step-gen", Boolean(state.model));
-  show("step-mod", false);
-  show("step-price", false);
-  show("step-result", false);
-}
-
-function pickGeneration(gen) {
-  state.gen = gen;
-  state.mod = null;
-  renderGenerations();
-  renderMods();
-  renderYears();
-  show("step-mod", true);
-  show("step-price", false);
-  show("step-result", false);
-}
-
-function pickMod(mod) {
-  state.mod = mod;
-  renderMods();
-  show("step-price", true);
-  updateCalcButton();
+  const year = Number($("year-select").value);
+  if (year) $("age-select").value = ageCategoryForYear(year);
 }
 
 function updateCalcButton() {
   const price = Number($("price-input").value);
   $("calc-btn").disabled = !(state.mod && Number.isFinite(price) && price > 0);
+}
+
+function resetAll() {
+  $("make-select").value = "";
+  $("price-input").value = "";
+  $("fob-select").value = "90000";
+  onMakeChange();
+}
+
+/* ---------- модальное окно поколений ---------- */
+
+function openGenModal() {
+  if (!state.model) return;
+  $("gen-modal-title").textContent = `${state.make.make} ${state.model.name} — поколение`;
+  const grid = $("gen-modal-grid");
+  grid.innerHTML = "";
+  state.model.generations.forEach((gen) => {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "gen-card" + (gen === state.gen ? " is-active" : "");
+    const img = document.createElement("img");
+    img.loading = "lazy";
+    img.alt = `${state.make.make} ${state.model.name} ${gen.code}`;
+    img.src = gen.photo || PLACEHOLDER_PHOTO;
+    img.addEventListener("error", () => {
+      img.src = PLACEHOLDER_PHOTO;
+    });
+    const overlay = document.createElement("div");
+    overlay.className = "gen-card__overlay";
+    overlay.innerHTML =
+      `<div class="gen-card__years">${genYearsText(gen)}, ${gen.code}</div>` +
+      `<div class="gen-card__label">${gen.label}</div>`;
+    card.append(img, overlay);
+    card.addEventListener("click", () => pickGeneration(gen));
+    grid.appendChild(card);
+  });
+  $("gen-modal").classList.remove("is-hidden");
+}
+
+function closeGenModal() {
+  $("gen-modal").classList.add("is-hidden");
 }
 
 /* ---------- расчёт ---------- */
@@ -246,10 +283,10 @@ function pickedSummaryText() {
   const parts = [
     `${state.make.make} ${state.model.name}`,
     `${state.gen.code}, ${genYearsText(state.gen)}`,
-    `${state.year} г.`,
+    `${$("year-select").value} г.`,
     state.mod.name,
     FUEL_LABELS[state.mod.fuel] || state.mod.fuel,
-    state.mod.gearbox,
+    GEARBOX_LABELS[state.mod.gearbox] || state.mod.gearbox,
     `${state.mod.cc.toLocaleString("ru-RU")} см³`,
     `${state.mod.hp} л.с.`,
   ];
@@ -303,20 +340,31 @@ function calculate() {
     resultCard("train", "Train (ж/д контейнер)", o.bankTrain, o.customsTrain, o.labRub, o.grandTotalTrainRub),
     resultCard("track", "Track (автовоз)", o.bankTrack, o.customsTrack, o.labRub, o.grandTotalTrackRub)
   );
-  show("step-result", true);
+  $("step-result").classList.remove("is-hidden");
   $("step-result").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 /* ---------- init ---------- */
 
 function init() {
-  renderChips("make-chips", CATALOG.map((m) => m.make), null, pickMake);
-  $("year-select").addEventListener("change", () => {
-    state.year = Number($("year-select").value);
-    syncAgeFromYear();
+  setOptions($("make-select"), "Марка", CATALOG.map((m) => ({ value: m.make, label: m.make })));
+
+  $("make-select").addEventListener("change", onMakeChange);
+  $("model-select").addEventListener("change", onModelChange);
+  $("gen-trigger").addEventListener("click", openGenModal);
+  $("gen-modal-close").addEventListener("click", closeGenModal);
+  $("gen-modal-backdrop").addEventListener("click", closeGenModal);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeGenModal();
   });
+  $("year-select").addEventListener("change", syncAgeFromYear);
+  $("fuel-select").addEventListener("change", renderModOptions);
+  $("gearbox-select").addEventListener("change", renderModOptions);
+  $("mod-select").addEventListener("change", onModChange);
   $("price-input").addEventListener("input", updateCalcButton);
   $("calc-btn").addEventListener("click", calculate);
+  $("reset-btn").addEventListener("click", resetAll);
+
   loadConfigAndRates();
 }
 
