@@ -1,0 +1,42 @@
+name: Deploy beta (car picker) to VPS
+
+# Деплой ТОЛЬКО папки beta/ в /var/www/one-pager/beta — прод-файлы не затрагиваются.
+# Страница доступна по https://uus-avto.ru/beta/ (noindex, с главной не линкуется).
+# ВАЖНО: в main-workflow (deploy-timeweb.yml) должен быть --exclude "beta/",
+# иначе прод-деплой с --delete удалит эту папку на сервере.
+
+on:
+  push:
+    branches:
+      - feature/car-picker-beta
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare SSH key
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          if ! ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null 2>&1; then
+            echo "Invalid VPS_SSH_KEY format. Put full OpenSSH private key into secret."
+            exit 1
+          fi
+
+      - name: Add VPS to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.VPS_PORT }}" "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy beta/ to VPS via rsync
+        run: |
+          rsync -az --delete -O \
+            -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p ${{ secrets.VPS_PORT }}" \
+            ./beta/ "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/one-pager/beta/"

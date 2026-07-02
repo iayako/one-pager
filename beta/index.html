@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Подбор авто и расчёт — демо</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="head">
+        <h1>Подбор автомобиля <span class="head__badge">бета</span></h1>
+        <p class="head__sub">
+          Выберите авто и характеристики — получите ориентировочную стоимость под ключ.
+          <a href="../">Полный калькулятор&nbsp;→</a>
+        </p>
+        <p class="rates-line" id="rates-line">Загружаем курсы валют…</p>
+      </header>
+
+      <section class="step" id="step-make">
+        <h2><span class="step__num">1</span> Марка</h2>
+        <div class="chips" id="make-chips"></div>
+      </section>
+
+      <section class="step is-hidden" id="step-model">
+        <h2><span class="step__num">2</span> Модель</h2>
+        <div class="chips" id="model-chips"></div>
+      </section>
+
+      <section class="step is-hidden" id="step-gen">
+        <h2><span class="step__num">3</span> Поколение</h2>
+        <div class="gen-grid" id="gen-grid"></div>
+      </section>
+
+      <section class="step is-hidden" id="step-mod">
+        <h2><span class="step__num">4</span> Модификация и год</h2>
+        <div class="mod-list" id="mod-list"></div>
+        <div class="row row--wrap">
+          <label class="field">
+            <span class="field__label">Год выпуска</span>
+            <select id="year-select"></select>
+          </label>
+          <label class="field">
+            <span class="field__label">Возраст для таможни</span>
+            <select id="age-select">
+              <option value="under3">Младше 3 лет</option>
+              <option value="3to5">От 3 до 5 лет</option>
+              <option value="over5">Старше 5 лет</option>
+            </select>
+          </label>
+        </div>
+        <p class="hint">Возраст подставляется по году выпуска автоматически — на границе диапазона уточните дату выпуска.</p>
+      </section>
+
+      <section class="step is-hidden" id="step-price">
+        <h2><span class="step__num">5</span> Цена на аукционе</h2>
+        <div class="row row--wrap">
+          <label class="field">
+            <span class="field__label">Цена авто, ¥</span>
+            <input id="price-input" type="number" min="0" step="10000" placeholder="Например, 1 500 000" inputmode="numeric" />
+          </label>
+          <label class="field">
+            <span class="field__label">Группа аукциона (FOB)</span>
+            <select id="fob-select">
+              <option value="90000" selected>Основные аукционы — 90 000 ¥</option>
+              <option value="100000">Региональные — 100 000 ¥</option>
+              <option value="110000">Удалённые — 110 000 ¥</option>
+            </select>
+          </label>
+        </div>
+        <button class="btn-primary" id="calc-btn" type="button" disabled>Рассчитать стоимость</button>
+      </section>
+
+      <section class="step is-hidden" id="step-result">
+        <h2>Ориентировочная стоимость</h2>
+        <p class="picked-summary" id="picked-summary"></p>
+        <div class="results" id="results"></div>
+        <p class="hint">
+          Расчёт ориентировочный: по текущим курсам и типовым расходам маршрута. Точную смету подтверждает менеджер.
+          Данные каталога (объёмы, мощности) — демо-версия.
+        </p>
+      </section>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
