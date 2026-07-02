@@ -16,17 +16,6 @@
   border: 1px solid var(--primary);
 }
 
-.header__sub {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-.header__sub a {
-  color: var(--primary-hover);
-  text-decoration: none;
-}
-
 .rates-meta--warn {
   color: var(--accent-track);
   opacity: 1;
