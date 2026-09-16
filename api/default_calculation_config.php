@@ -34,7 +34,7 @@ return [
             'description' => '',
         ],
         'invoiceMnt' => [
-            'label' => 'Инвойс до комиссии посредника, ₮',
+            'label' => 'Инвойс с комиссией посредника, ₮',
             'description' => '',
         ],
         'invoiceRub' => [
@@ -59,18 +59,14 @@ return [
             'op' => 'table',
             'input' => ['ref' => 'auctionYen'],
             'bands' => [
-                ['max' => 500000, 'value' => 0],
-                ['max' => 1000000, 'value' => 10000],
-                ['max' => 1500000, 'value' => 20000],
+                ['max' => 800000, 'value' => 0],
+                ['max' => 1200000, 'value' => 15000],
+                ['max' => 1500000, 'value' => 25000],
                 ['max' => 2000000, 'value' => 40000],
-                ['max' => 2500000, 'value' => 60000],
-                ['max' => 3000000, 'value' => 80000],
-                ['max' => 3500000, 'value' => 100000],
-                ['max' => 4000000, 'value' => 120000],
-                ['max' => 4500000, 'value' => 140000],
-                ['max' => 5000000, 'value' => 160000],
+                ['max' => 4000000, 'value' => 80000],
+                ['max' => 5000000, 'value' => 120000],
             ],
-            'default' => ['op' => 'mul', 'args' => [['ref' => 'auctionYen'], 0.05]],
+            'default' => ['op' => 'mul', 'args' => [['ref' => 'auctionYen'], 0.04]],
             'round' => 'nearest',
         ],
         'japanYenTotal' => [
@@ -93,22 +89,11 @@ return [
             'args' => [['ref' => 'usdTrackContainer'], ['ref' => 'mongoliaDocsUsd'], ['ref' => 'borderSupportUsd'], ['ref' => 'trackCarrierUsd']],
         ],
         'rubInvoiceMntEquivalent' => ['op' => 'mul', 'args' => [['ref' => 'rubInInvoice'], ['ref' => 'mntPerRub']]],
-        'trainDeliveryMnt' => [
-            'op' => 'sum',
-            'args' => [
-                ['op' => 'mul', 'args' => [['ref' => 'trainDeliveryUsd'], ['ref' => 'usdMnt']]],
-                ['ref' => 'rubInvoiceMntEquivalent'],
-            ],
-        ],
-        'trackDeliveryMnt' => [
-            'op' => 'sum',
-            'args' => [
-                ['op' => 'mul', 'args' => [['ref' => 'trackDeliveryUsd'], ['ref' => 'usdMnt']]],
-                ['ref' => 'rubInvoiceMntEquivalent'],
-            ],
-        ],
-        'invoiceMntTrain' => ['op' => 'sum', 'args' => [['ref' => 'japanMntTotal'], ['ref' => 'trainDeliveryMnt']]],
-        'invoiceMntTrack' => ['op' => 'sum', 'args' => [['ref' => 'japanMntTotal'], ['ref' => 'trackDeliveryMnt']]],
+        // Расходы до Монголии — только $-часть; таможенная очистка отдельной строкой входит в инвойс.
+        'trainDeliveryMnt' => ['op' => 'mul', 'args' => [['ref' => 'trainDeliveryUsd'], ['ref' => 'usdMnt']]],
+        'trackDeliveryMnt' => ['op' => 'mul', 'args' => [['ref' => 'trackDeliveryUsd'], ['ref' => 'usdMnt']]],
+        'invoiceMntTrain' => ['op' => 'sum', 'args' => [['ref' => 'japanMntTotal'], ['ref' => 'trainDeliveryMnt'], ['ref' => 'rubInvoiceMntEquivalent']]],
+        'invoiceMntTrack' => ['op' => 'sum', 'args' => [['ref' => 'japanMntTotal'], ['ref' => 'trackDeliveryMnt'], ['ref' => 'rubInvoiceMntEquivalent']]],
         'payableMntTrain' => ['op' => 'sum', 'args' => [['ref' => 'invoiceMntTrain'], ['ref' => 'agentFixedMnt']]],
         'payableMntTrack' => ['op' => 'sum', 'args' => [['ref' => 'invoiceMntTrack'], ['ref' => 'agentFixedMnt']]],
         'invoiceRubTrain' => ['op' => 'div', 'args' => [['ref' => 'payableMntTrain'], ['ref' => 'mntPerRub']]],
