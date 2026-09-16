@@ -3,21 +3,18 @@
  * Общая для браузера (app.js) и Node-тестов.
  */
 
-/** Доп. комиссия аукциона от цены авто (¥), таблица из ТЗ */
+/** Доп. комиссия аукциона от цены авто (¥), таблица от клиента (сентябрь 2026) */
 export function auctionCommissionYen(auctionPrice) {
   const p = Number(auctionPrice);
   if (!Number.isFinite(p) || p <= 0) return 0;
-  if (p <= 500_000) return 0;
-  if (p <= 1_000_000) return 10_000;
-  if (p <= 1_500_000) return 20_000;
+  if (p <= 800_000) return 0;
+  if (p <= 1_200_000) return 15_000;
+  if (p <= 1_500_000) return 25_000;
   if (p <= 2_000_000) return 40_000;
-  if (p <= 2_500_000) return 60_000;
-  if (p <= 3_000_000) return 80_000;
-  if (p <= 3_500_000) return 100_000;
-  if (p <= 4_000_000) return 120_000;
-  if (p <= 4_500_000) return 140_000;
-  if (p <= 5_000_000) return 160_000;
-  return Math.round(p * 0.05);
+  if (p <= 4_000_000) return 80_000;
+  if (p <= 5_000_000) return 120_000;
+  // Свыше 5 000 000 ¥ — 4% (требуется предварительное уведомление аукциона)
+  return Math.round(p * 0.04);
 }
 
 /** ₽ в инвойсе → ¥ через $: (₽ / ₽/$) * ¥/$ */
@@ -242,7 +239,7 @@ export const DEFAULT_CALCULATION_CONFIG = {
       description: "",
     },
     invoiceMnt: {
-      label: "Инвойс до комиссии посредника, ₮",
+      label: "Инвойс с комиссией посредника, ₮",
       description: "",
     },
     invoiceRub: {
@@ -267,18 +264,14 @@ export const DEFAULT_CALCULATION_CONFIG = {
       op: "table",
       input: { ref: "auctionYen" },
       bands: [
-        { max: 500000, value: 0 },
-        { max: 1000000, value: 10000 },
-        { max: 1500000, value: 20000 },
+        { max: 800000, value: 0 },
+        { max: 1200000, value: 15000 },
+        { max: 1500000, value: 25000 },
         { max: 2000000, value: 40000 },
-        { max: 2500000, value: 60000 },
-        { max: 3000000, value: 80000 },
-        { max: 3500000, value: 100000 },
-        { max: 4000000, value: 120000 },
-        { max: 4500000, value: 140000 },
-        { max: 5000000, value: 160000 },
+        { max: 4000000, value: 80000 },
+        { max: 5000000, value: 120000 },
       ],
-      default: { op: "mul", args: [{ ref: "auctionYen" }, 0.05] },
+      default: { op: "mul", args: [{ ref: "auctionYen" }, 0.04] },
       round: "nearest",
     },
     japanYenTotal: {
@@ -319,27 +312,23 @@ export const DEFAULT_CALCULATION_CONFIG = {
       op: "mul",
       args: [{ ref: "rubInInvoice" }, { ref: "mntPerRub" }],
     },
+    // Расходы до Монголии — только $-часть; таможенная очистка показывается отдельной строкой
+    // и входит в инвойс (инвойс = Япония + до Монголии + очистка).
     trainDeliveryMnt: {
-      op: "sum",
-      args: [
-        { op: "mul", args: [{ ref: "trainDeliveryUsd" }, { ref: "usdMnt" }] },
-        { ref: "rubInvoiceMntEquivalent" },
-      ],
+      op: "mul",
+      args: [{ ref: "trainDeliveryUsd" }, { ref: "usdMnt" }],
     },
     trackDeliveryMnt: {
-      op: "sum",
-      args: [
-        { op: "mul", args: [{ ref: "trackDeliveryUsd" }, { ref: "usdMnt" }] },
-        { ref: "rubInvoiceMntEquivalent" },
-      ],
+      op: "mul",
+      args: [{ ref: "trackDeliveryUsd" }, { ref: "usdMnt" }],
     },
     invoiceMntTrain: {
       op: "sum",
-      args: [{ ref: "japanMntTotal" }, { ref: "trainDeliveryMnt" }],
+      args: [{ ref: "japanMntTotal" }, { ref: "trainDeliveryMnt" }, { ref: "rubInvoiceMntEquivalent" }],
     },
     invoiceMntTrack: {
       op: "sum",
-      args: [{ ref: "japanMntTotal" }, { ref: "trackDeliveryMnt" }],
+      args: [{ ref: "japanMntTotal" }, { ref: "trackDeliveryMnt" }, { ref: "rubInvoiceMntEquivalent" }],
     },
     payableMntTrain: {
       op: "sum",
