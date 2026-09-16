@@ -2,7 +2,7 @@
  * Калькулятор по ТЗ: инвойс ¥/₽, комиссия АТБ, итог с таможней и лабораторией.
  */
 
-import { DEFAULT_CALCULATION_CONFIG, computeCalculation } from "./calc-core.js?v=4";
+import { DEFAULT_CALCULATION_CONFIG, computeCalculation } from "./calc-core.js?v=5";
 
 const THEME_STORAGE_KEY = "calculator-theme";
 /** Аукцион → FOB, ¥. Список и стоимости от клиента (сентябрь 2026), сгруппированы по портам. */
@@ -126,7 +126,7 @@ const AUCTION_OPTIONS = [
   { name: "MIRIVE OSAKA (HANATEN OSAKA)", fobYen: 81000, port: "Osaka" },
   { name: "NAA HIROSHIMA", fobYen: 95000, port: "Osaka" },
   { name: "NAA OSAKA", fobYen: 81500, port: "Osaka" },
-  { name: "NISSAN PLAZASOL OSAKA (NPS)", fobYen: 81500, port: "Osaka" },
+  { name: "NISSAN PLAZASOL OSAKA (NPS)", fobYen: 85000, port: "Osaka" },
   { name: "NOAA", fobYen: 81500, port: "Osaka" },
   { name: "ORIX KOBE", fobYen: 78000, port: "Osaka" },
   { name: "TAA HIROSHIMA", fobYen: 93000, port: "Osaka" },
@@ -771,21 +771,15 @@ function render(data) {
   const snap = computeCalculation(data, currentCalculationConfig);
   const o = snap.outputs;
 
-  document.getElementById("out-japan-yen").textContent = formatMnt(o.japanMntTotal);
+  // В интерфейсе показывается только Track (Train убран по вводным клиента 16.09.2026);
+  // в лог расчёта по-прежнему сохраняются оба контура.
   document.getElementById("out-japan-yen-t").textContent = formatMnt(o.japanMntTotal);
-  document.getElementById("out-usd-train-yen").textContent = formatMnt(o.trainDeliveryMnt);
   document.getElementById("out-usd-track-yen").textContent = formatMnt(o.trackDeliveryMnt);
-  document.getElementById("out-rub-invoice-train-yen").textContent = formatMnt(o.rubInvoiceMntEquivalent);
   document.getElementById("out-rub-invoice-track-yen").textContent = formatMnt(o.rubInvoiceMntEquivalent);
-  document.getElementById("out-invoice-yen-train").textContent = formatMnt(o.payableMntTrain);
   document.getElementById("out-invoice-yen-track").textContent = formatMnt(o.payableMntTrack);
-  document.getElementById("out-invoice-rub-train").textContent = formatRub(o.bankTrain.totalRub);
   document.getElementById("out-invoice-rub-track").textContent = formatRub(o.bankTrack.totalRub);
-  document.getElementById("out-customs-train").textContent = formatRub(o.customsTrain.totalRub);
   document.getElementById("out-customs-track").textContent = formatRub(o.customsTrack.totalRub);
-  document.getElementById("out-lab-train").textContent = formatRub(o.labRub);
   document.getElementById("out-lab-track").textContent = formatRub(o.labRub);
-  document.getElementById("out-grand-train").textContent = formatRub(o.grandTotalTrainRub);
   document.getElementById("out-grand-track").textContent = formatRub(o.grandTotalTrackRub);
 
   persistCalculationSnapshot({ config: snap.config, inputs: snap.inputs, outputs: snap.outputs });
@@ -793,7 +787,7 @@ function render(data) {
   if (leadCard) leadCard.classList.remove("lead-card--hidden");
   const leadSummary = document.getElementById("lead-summary");
   if (leadSummary) {
-    leadSummary.textContent = `Итог по расчёту: Train ${formatRub(o.grandTotalTrainRub)} · Track ${formatRub(o.grandTotalTrackRub)}.`;
+    leadSummary.textContent = `Итог по расчёту: ${formatRub(o.grandTotalTrackRub)}.`;
   }
 }
 

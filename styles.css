@@ -543,12 +543,6 @@ input::placeholder {
   gap: 1.25rem;
 }
 
-@media (min-width: 640px) {
-  .results__grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
 .lead-card {
   margin-top: 1.1rem;
   border: 1px solid var(--border);
