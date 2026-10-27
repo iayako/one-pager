@@ -402,13 +402,126 @@ function formatNum(value) {
   return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 4 }).format(Number(value) || 0);
 }
 
+/* ---------- Ручной курс тугрика на сегодня ---------- */
+
+/** Насколько ручной курс может отличаться от последнего курса банка без переспроса. */
+const MANUAL_RATE_DRIFT_WARN = 0.03;
+
+let manualRatesState = null;
+
+/** «28.10 09:12» в часовом поясе компьютера менеджера. */
+function formatLocalMoment(iso) {
+  const d = new Date(iso);
+  if (!iso || Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+/** Принимает «3 599», «23,01» и «23.01». */
+function parseRateInput(value) {
+  const n = Number(String(value || "").replace(/[\s ]/g, "").replace(",", "."));
+  return Number.isFinite(n) && n > 0 ? n : NaN;
+}
+
+function renderManualRates(state) {
+  manualRatesState = state;
+  const { active, bank } = state;
+
+  const stateEl = $("manual-rates-state");
+  stateEl.classList.toggle("admin-manual-rates__state--active", Boolean(active));
+  if (active) {
+    const who = active.setBy ? `, ${active.setBy}` : "";
+    stateEl.textContent =
+      `Сегодня действует ручной курс: $ ${formatNum(active.usdMnt)} ₮ · ¥ ${formatNum(active.jpyMnt)} ₮ ` +
+      `(введён ${formatLocalMoment(active.setAt)}${who}).`;
+  } else {
+    stateEl.textContent = "Ручной курс на сегодня не задан — калькулятор берёт курс Khan Bank.";
+  }
+
+  $("manual-rates-bank").textContent = bank
+    ? `Последний курс, полученный от Khan Bank: $ ${formatNum(bank.usdMnt)} ₮ · ¥ ${formatNum(bank.jpyMnt)} ₮ ` +
+      `(${formatLocalMoment(bank.savedAt)}).`
+    : "Курс от Khan Bank пока не получен.";
+
+  $("btn-manual-clear").hidden = !active;
+
+  // Поля заполняем только действующим ручным курсом: курс банка мог устареть,
+  // и подставленное число легко применить, не сверив с сайтом. Он виден в подсказке.
+  const usdInput = $("manual-usd-mnt");
+  const jpyInput = $("manual-jpy-mnt");
+  usdInput.value = active ? String(active.usdMnt) : "";
+  jpyInput.value = active ? String(active.jpyMnt) : "";
+  usdInput.placeholder = bank ? `Например, ${formatNum(bank.usdMnt)}` : "Например, 3599";
+  jpyInput.placeholder = bank ? `Например, ${formatNum(bank.jpyMnt)}` : "Например, 23,01";
+}
+
+async function loadManualRates() {
+  try {
+    renderManualRates(await api("./api/admin_manual_rates.php", { method: "GET", headers: {} }));
+  } catch (err) {
+    $("manual-rates-state").textContent = "Не удалось загрузить ручной курс.";
+    setStatus("manual-rates-status", err instanceof Error ? err.message : "Ошибка загрузки", "error");
+  }
+}
+
+function wireManualRates() {
+  $("manual-rates-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const usdMnt = parseRateInput($("manual-usd-mnt").value);
+    const jpyMnt = parseRateInput($("manual-jpy-mnt").value);
+    if (!Number.isFinite(usdMnt) || !Number.isFinite(jpyMnt)) {
+      setStatus("manual-rates-status", "Впишите оба курса числами.", "error");
+      return;
+    }
+
+    const bank = manualRatesState && manualRatesState.bank;
+    if (bank) {
+      const drift = Math.max(Math.abs(usdMnt / bank.usdMnt - 1), Math.abs(jpyMnt / bank.jpyMnt - 1));
+      const confirmed =
+        drift <= MANUAL_RATE_DRIFT_WARN ||
+        window.confirm(
+          `Курс отличается от последнего курса Khan Bank на ${(drift * 100).toFixed(1)}%. Проверьте цифры. Сохранить?`
+        );
+      if (!confirmed) return;
+    }
+
+    try {
+      const state = await api("./api/admin_manual_rates.php", {
+        method: "POST",
+        body: JSON.stringify({ action: "set", usdMnt, jpyMnt }),
+      });
+      renderManualRates(state);
+      setStatus("manual-rates-status", "Курс применён — калькулятор считает по нему до конца дня.", "ok");
+    } catch (err) {
+      setStatus("manual-rates-status", err instanceof Error ? err.message : "Ошибка сохранения", "error");
+    }
+  });
+
+  $("btn-manual-clear").addEventListener("click", async () => {
+    try {
+      const state = await api("./api/admin_manual_rates.php", {
+        method: "POST",
+        body: JSON.stringify({ action: "clear" }),
+      });
+      renderManualRates(state);
+      setStatus("manual-rates-status", "Ручной курс сброшен — калькулятор снова берёт курс Khan Bank.", "ok");
+    } catch (err) {
+      setStatus("manual-rates-status", err instanceof Error ? err.message : "Ошибка сброса", "error");
+    }
+  });
+}
+
+/** Всё, что нужно загрузить после входа. Ручной курс грузится независимо от схемы. */
+async function loadWorkspace() {
+  await Promise.all([loadManualRates(), loadConfig()]);
+}
+
 async function loadSession() {
   try {
     const session = await api("./api/admin_session.php", { method: "GET", headers: {} });
     currentUser = session.authenticated ? session.user : null;
     renderShell();
     if (currentUser) {
-      await loadConfig();
+      await loadWorkspace();
     }
   } catch (err) {
     currentUser = null;
@@ -439,7 +552,7 @@ function wireAuthForms() {
       currentUser = data.user;
       setStatus("auth-status", "");
       renderShell();
-      await loadConfig();
+      await loadWorkspace();
     } catch (err) {
       setStatus("auth-status", err instanceof Error ? err.message : "Ошибка входа", "error");
     }
@@ -460,7 +573,7 @@ function wireAuthForms() {
       currentUser = data.user;
       setStatus("auth-status", "");
       renderShell();
-      await loadConfig();
+      await loadWorkspace();
     } catch (err) {
       setStatus("auth-status", err instanceof Error ? err.message : "Ошибка setup", "error");
     }
@@ -562,6 +675,7 @@ function wireAdminActions() {
 (function bootAdmin() {
   wireAuthForms();
   wireAdminActions();
+  wireManualRates();
   renderShell();
   loadSession();
 })();

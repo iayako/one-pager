@@ -32,6 +32,8 @@
 - [x] **Push заявок менеджеру:** `api/telegram_notify.php` — `save_lead.php` шлёт карточку новой заявки в Telegram (`notify_chat_ids` в `telegram_config.php`). Прод за блокировкой Telegram: трафик идёт через прокси (`TELEGRAM_PROXY` для бота и PHP-FPM).
 - [x] **Заявки в Google-таблицу:** `api/google_sheets_notify.php` + Apps Script (`api/google_sheets_apps_script.gs`) — `save_lead.php` дублирует заявку строкой в таблицу для аналитики; настройки в `api/google_sheets_config.php` (в Git не коммитится).
 - [x] **Админка формул:** `admin.html` / `admin.js` + PHP endpoint’ы `api/admin_*.php`; владелец сайта меняет переменные и JSON-блоки формул, сохраняет черновик и публикует активную версию. Публичный калькулятор получает схему через `api/calculation_config.php`.
+- [x] **Живучесть курсов (27.10.2026):** если один банк недоступен, снимок курсов всё равно обновляется (упавший источник берётся из прошлого снимка), `khan_rates.php` отдаёт последний удачный ответ с пометкой `stale`, а под курсами честно подписано, какой курс от какой даты. Причина инцидента — Khan Bank перестал стабильно отдавать JSON серверу.
+- [x] **Ручной курс тугрика:** в админке блок «Курс тугрика на сегодня» — ₮/$ и ₮/¥ (безнал Sell с сайта Khan). Действует только в день ввода (по Улан-Батору), в этот день главнее курса банка, назавтра отключается сам. Хранится в `api/cache/manual_rates.json` (`api/manual_rates_lib.php`, `api/admin_manual_rates.php`); накладывается при чтении в `khan_rates.php` и `rates_snapshot.php`, cron берёт только курс банка (`source=bank`).
 
 ---
 

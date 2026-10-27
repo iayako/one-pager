@@ -228,3 +228,33 @@
     justify-content: stretch;
   }
 }
+
+/* Ручной курс тугрика на сегодня */
+.admin-manual-rates__state {
+  margin: 0.25rem 0 0;
+  font-weight: 600;
+}
+
+.admin-manual-rates__state--active {
+  color: var(--accent-train);
+}
+
+.admin-manual-rates__form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 220px)) 1fr;
+  gap: 0.9rem;
+  align-items: end;
+  margin-top: 1rem;
+}
+
+.admin-manual-rates__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+@media (max-width: 760px) {
+  .admin-manual-rates__form {
+    grid-template-columns: 1fr;
+  }
+}
