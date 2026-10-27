@@ -612,6 +612,9 @@ let ratesRefreshInFlight = false;
  * устаревший курс не должен выглядеть свежим.
  * @param {Record<string, string> | undefined} staleSources
  */
+/** Как называть источник в подписи: ключи — имена из results живых запросов. */
+const RATE_SOURCE_LABELS = { "Khan Bank": "₮", "АТБ": "₽/$", "ЦБ": "₽/€" };
+
 function staleRatesSuffix(staleSources) {
   if (!staleSources || typeof staleSources !== "object") return "";
   const labels = { khan: "₮", atb: "₽/$", cbr: "₽/€" };
@@ -741,9 +744,16 @@ async function refreshRatesAuto(opts = {}) {
 
   const results = await Promise.all(tasks);
   let atbHasRubPerYen = false;
+  // Эндпоинт мог отдать не живой курс, а свой последний удачный (ok + stale) — подписываем честно.
+  const liveStaleNotes = [];
 
   for (const r of results) {
     if (r && r.data && r.data.ok) {
+      if (r.data.stale === true && r.data.staleSince) {
+        const label = RATE_SOURCE_LABELS[r.src] || r.src;
+        const when = formatShortInstantRu(String(r.data.staleSince));
+        if (when) liveStaleNotes.push(`${label} от ${when}`);
+      }
       if (r.src === "Khan Bank" && inputYenPerUsd && typeof r.data.yenPerUsd === "number") {
         inputYenPerUsd.value = String(r.data.yenPerUsd);
       }
@@ -796,11 +806,14 @@ async function refreshRatesAuto(opts = {}) {
     // оставляем дефолт, но UI обновим
   }
 
-  let dateLabel = commonActualLabel;
+  const staleNotes = [...liveStaleNotes];
   if (staleFromSnapshot) {
     const when = formatShortInstantRu(staleFromSnapshot);
-    dateLabel = when ? `${commonActualLabel} · часть курсов от ${when}` : commonActualLabel;
+    if (when) staleNotes.push(`часть курсов от ${when}`);
   }
+  const dateLabel = staleNotes.length
+    ? `${commonActualLabel} · ${staleNotes.join(", ")}`
+    : commonActualLabel;
   setRateDateText("rate-date-common", derived ? dateLabel : "—");
 
   updateRatesUIFromInputs();
