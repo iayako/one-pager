@@ -87,26 +87,6 @@ $payload = [
     'dateParam' => $moscowToday,
 ];
 
-$okAll = true;
-foreach ($urls as $key => $url) {
-    $payload[$key] = http_get_json($url);
-    if (isset($payload[$key]['_error']) || (($payload[$key]['ok'] ?? false) !== true)) {
-        $okAll = false;
-        fwrite(STDERR, "Failed: {$key} <- {$url}\n");
-        if (isset($payload[$key]['error'])) {
-            fwrite(STDERR, '  error: ' . $payload[$key]['error'] . "\n");
-        }
-        if (isset($payload[$key]['_error'])) {
-            fwrite(STDERR, '  ' . $payload[$key]['_error'] . "\n");
-        }
-    }
-}
-
-if (!$okAll) {
-    fwrite(STDERR, "Snapshot not written (one or more sources failed).\n");
-    exit(1);
-}
-
 $dir = __DIR__ . '/cache';
 if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
     fwrite(STDERR, "Cannot create cache directory: {$dir}\n");
@@ -114,6 +94,55 @@ if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
 }
 
 $file = $dir . '/rates_snapshot.json';
+
+/**
+ * Прошлый снимок: данные упавшего источника переносим из него, иначе один недоступный банк
+ * морозил весь снимок и рабочие источники тоже переставали обновляться (инцидент 27.10.2026).
+ */
+$previous = [];
+if (is_readable($file)) {
+    $prevRaw = @file_get_contents($file);
+    $prevData = is_string($prevRaw) ? json_decode($prevRaw, true) : null;
+    if (is_array($prevData)) {
+        $previous = $prevData;
+    }
+}
+
+$okAll = true;
+$reused = [];
+foreach ($urls as $key => $url) {
+    $fresh = http_get_json($url);
+    $freshOk = !isset($fresh['_error']) && (($fresh['ok'] ?? false) === true);
+    if ($freshOk) {
+        $payload[$key] = $fresh;
+        continue;
+    }
+
+    $okAll = false;
+    fwrite(STDERR, "Failed: {$key} <- {$url}\n");
+    if (isset($fresh['error'])) {
+        fwrite(STDERR, '  error: ' . $fresh['error'] . "\n");
+    }
+    if (isset($fresh['_error'])) {
+        fwrite(STDERR, '  ' . $fresh['_error'] . "\n");
+    }
+
+    $prev = is_array($previous[$key] ?? null) ? $previous[$key] : null;
+    if ($prev !== null && ($prev['ok'] ?? false) === true) {
+        $prev['_stale'] = true;
+        $prev['_staleSince'] = (string) ($prev['_staleSince'] ?? $previous['fetchedAt'] ?? '');
+        $prev['_staleReason'] = (string) ($fresh['error'] ?? $fresh['_error'] ?? 'источник недоступен');
+        $payload[$key] = $prev;
+        $reused[] = $key;
+        fwrite(STDERR, "  reused previous values ({$prev['_staleSince']})\n");
+    } else {
+        $payload[$key] = $fresh;
+    }
+}
+
+if ($reused !== []) {
+    $payload['staleSources'] = $reused;
+}
 $tmp = $file . '.' . getmypid() . '.tmp';
 $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 if ($json === false) {
