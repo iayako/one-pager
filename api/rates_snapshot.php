@@ -54,11 +54,6 @@ $rubPerYen = isset($atb['rubPerYen']) && is_numeric($atb['rubPerYen']) && (float
     : null;
 $rubPerEur = isset($cbr['rubPerEur']) && is_numeric($cbr['rubPerEur']) ? (float) $cbr['rubPerEur'] : null;
 
-$complete =
-    $usdMnt !== null && $usdMnt > 0
-    && $jpyMnt !== null && $jpyMnt > 0
-    && $rubPerEur !== null && $rubPerEur > 0;
-
 /**
  * Источники, чьи значения перенесены из прошлого снимка (банк был недоступен).
  * Фронт показывает по ним честную дату, чтобы устаревший курс не выглядел свежим.
@@ -70,6 +65,24 @@ foreach (['khan' => $khan, 'atb' => $atb, 'cbr' => $cbr] as $srcKey => $block) {
         $staleSources[$srcKey] = (string) ($block['_staleSince'] ?? $block['staleSince'] ?? '');
     }
 }
+
+// Ручной курс тугрика из админки на сегодня главнее курса банка в снимке.
+// Накладывается при чтении, поэтому действует сразу, не дожидаясь cron, и сам истекает назавтра.
+require_once __DIR__ . '/manual_rates_lib.php';
+$manualInfo = null;
+$manual = manual_rates_active();
+if ($manual !== null) {
+    $usdMnt = $manual['usdMnt'];
+    $jpyMnt = $manual['jpyMnt'];
+    $yenPerUsd = round($manual['usdMnt'] / $manual['jpyMnt'], 4);
+    unset($staleSources['khan']);
+    $manualInfo = ['date' => $manual['date'], 'setAt' => $manual['setAt']];
+}
+
+$complete =
+    $usdMnt !== null && $usdMnt > 0
+    && $jpyMnt !== null && $jpyMnt > 0
+    && $rubPerEur !== null && $rubPerEur > 0;
 
 echo json_encode([
     'ok' => true,
@@ -83,6 +96,7 @@ echo json_encode([
     'rubPerYen' => $rubPerYen,
     'rubPerEur' => $rubPerEur,
     'staleSources' => $staleSources,
+    'manual' => $manualInfo,
     'meta' => [
         'cacheFile' => basename($file),
         'sources' => [

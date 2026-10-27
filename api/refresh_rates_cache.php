@@ -40,7 +40,8 @@ $dateSuffix = '?date=' . rawurlencode($moscowToday);
 $nonce = 'ts=' . (string) time();
 
 $urls = [
-    'khan' => $base . '/api/khan_rates.php' . $dateSuffix,
+    // Только курс банка: ручной курс из админки накладывает rates_snapshot.php при чтении.
+    'khan' => $base . '/api/khan_rates.php' . $dateSuffix . '&source=bank',
     'atb' => $base . '/api/atb_usd_ulanude.php?' . $nonce,
     'cbr' => $base . '/api/cbr_eur.php' . $dateSuffix,
 ];

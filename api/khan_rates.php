@@ -111,6 +111,17 @@ if ($dateParam !== '') {
     $dateParam = $dt->format('Y-m-d');
 }
 
+// Ручной курс из админки на свой день главнее банка (см. manual_rates_lib.php).
+// refresh_rates_cache.php просит source=bank: в снимке хранится только курс банка,
+// а ручной накладывается при чтении — так он вступает в силу сразу и сам истекает.
+require_once __DIR__ . '/manual_rates_lib.php';
+if (($_GET['source'] ?? '') !== 'bank') {
+    $manual = manual_rates_active();
+    if ($manual !== null && manual_rates_applies_to($dateParam)) {
+        json_out(manual_rates_as_khan_payload($manual));
+    }
+}
+
 $url = 'https://www.khanbank.com/api/back/rates?date=' . rawurlencode($dateParam);
 
 function khan_json_looks_valid(string $s): bool

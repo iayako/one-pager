@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./styles.css?v=6" />
-  <link rel="stylesheet" href="./admin.css?v=6" />
+  <link rel="stylesheet" href="./admin.css?v=7" />
 </head>
 <body>
   <main class="page admin-page">
@@ -61,6 +61,35 @@
     </section>
 
     <section class="admin-workspace" id="admin-workspace" hidden>
+      <section class="panel admin-manual-rates" aria-labelledby="manual-rates-title">
+        <h2 class="panel__title" id="manual-rates-title">Курс тугрика на сегодня</h2>
+        <p class="admin-manual-rates__state" id="manual-rates-state">Загрузка…</p>
+        <p class="admin-muted" id="manual-rates-bank"></p>
+
+        <form class="admin-manual-rates__form" id="manual-rates-form" novalidate>
+          <label class="field">
+            <span class="field__label">₮ за 1 $ (USD)</span>
+            <input type="text" inputmode="decimal" id="manual-usd-mnt" autocomplete="off" placeholder="Например, 3599" />
+          </label>
+          <label class="field">
+            <span class="field__label">₮ за 1 ¥ (JPY)</span>
+            <input type="text" inputmode="decimal" id="manual-jpy-mnt" autocomplete="off" placeholder="Например, 23.01" />
+          </label>
+          <div class="admin-manual-rates__actions">
+            <button type="submit" class="btn btn--primary" id="btn-manual-save">Применить на сегодня</button>
+            <button type="button" class="btn btn--ghost" id="btn-manual-clear" hidden>Сбросить — брать курс банка</button>
+          </div>
+        </form>
+
+        <div class="admin-help">
+          <strong>Где взять:</strong> khanbank.com → «View More» у курсов → в таблице блок
+          <strong>Non-Cash</strong>, колонка <strong>Sell</strong>, строки USD и JPY.
+          Надбавку риска к йене не прибавляйте — калькулятор добавит её сам.
+          Курс действует до конца сегодняшнего дня, завтра калькулятор вернётся к курсу банка.
+        </div>
+        <p class="lead-form__status" id="manual-rates-status" aria-live="polite"></p>
+      </section>
+
       <section class="panel">
         <div class="admin-toolbar">
           <div>
@@ -118,6 +147,6 @@
     </section>
   </main>
 
-  <script type="module" src="./admin.js?v=16"></script>
+  <script type="module" src="./admin.js?v=17"></script>
 </body>
 </html>
