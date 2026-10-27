@@ -608,6 +608,42 @@ const RATES_POLL_INTERVAL_MS = 90 * 1000;
 let ratesRefreshInFlight = false;
 
 /**
+ * Подпись про источники, чьи значения перенесены из прошлого снимка (банк был недоступен):
+ * устаревший курс не должен выглядеть свежим.
+ * @param {Record<string, string> | undefined} staleSources
+ */
+function staleRatesSuffix(staleSources) {
+  if (!staleSources || typeof staleSources !== "object") return "";
+  const labels = { khan: "₮", atb: "₽/$", cbr: "₽/€" };
+  const parts = Object.entries(staleSources).map(([key, since]) => {
+    const label = labels[key] || key;
+    const when = since ? formatShortInstantRu(String(since)) : "";
+    return when ? `${label} от ${when}` : label;
+  });
+  return parts.length ? ` · курс ${parts.join(", ")}` : "";
+}
+
+/** Короткая дата для подписи устаревших курсов: «26.10 19:30» (Москва). */
+function formatShortInstantRu(isoOrDate) {
+  const d = isoOrDate instanceof Date ? isoOrDate : new Date(isoOrDate);
+  if (Number.isNaN(d.getTime())) return "";
+  try {
+    return new Intl.DateTimeFormat("ru-RU", {
+      timeZone: "Europe/Moscow",
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .format(d)
+      .replace(", ", " ");
+  } catch {
+    return "";
+  }
+}
+
+/**
  * @param {{ resetDatePlaceholder?: boolean }} opts — при первой загрузке сбрасываем «Актуален на» в —; при опросе не трогаем.
  */
 async function refreshRatesAuto(opts = {}) {
@@ -634,6 +670,9 @@ async function refreshRatesAuto(opts = {}) {
   const inputJpyMnt = document.getElementById("jpy-mnt");
 
   let usedSnapshot = false;
+  // Последний снимок держим под рукой: если живые API недоступны (как при бот-защите Khan
+  // 27.10.2026), показываем из него последние известные курсы вместо прочерков.
+  let snapshotFallback = null;
   try {
     const snapResp = await fetch(
       resolveAppUrl(`api/rates_snapshot.php?${requestNonce}`),
@@ -641,6 +680,9 @@ async function refreshRatesAuto(opts = {}) {
     );
     const snap = await snapResp.json().catch(() => null);
     const age = snap && typeof snap.ageSec === "number" ? snap.ageSec : Infinity;
+    if (snap && snap.ok && snap.complete) {
+      snapshotFallback = snap;
+    }
     if (
       snap &&
       snap.ok &&
@@ -669,7 +711,7 @@ async function refreshRatesAuto(opts = {}) {
         snap.fetchedAt && String(snap.fetchedAt).trim() !== ""
           ? formatInstantRuWithTimeZone(String(snap.fetchedAt).trim())
           : commonActualLabel;
-      setRateDateText("rate-date-common", derived ? snapLabel : "—");
+      setRateDateText("rate-date-common", derived ? snapLabel + staleRatesSuffix(snap.staleSources) : "—");
       updateProgressiveSteps();
       usedSnapshot = true;
     }
@@ -724,13 +766,42 @@ async function refreshRatesAuto(opts = {}) {
     }
   }
 
+  // Живой банк мог не ответить (бот-защита, сеть) — добираем недостающее из последнего
+  // снимка, иначе панель курсов обнуляется и калькулятор нельзя посчитать.
+  const numeric = (el) => Number(el && el.value);
+  let staleFromSnapshot = null;
+  if (snapshotFallback) {
+    const fillFromSnapshot = (el, value) => {
+      if (!el || typeof value !== "number" || !(value > 0) || numeric(el) > 0) return false;
+      el.value = String(value);
+      return true;
+    };
+    const filled = [
+      fillFromSnapshot(inputUsdMnt, snapshotFallback.usdMnt),
+      fillFromSnapshot(inputJpyMnt, snapshotFallback.jpyMnt),
+      fillFromSnapshot(inputRubPerEur, snapshotFallback.rubPerEur),
+      fillFromSnapshot(inputRubPerUsd, snapshotFallback.rubPerUsd),
+    ].some(Boolean);
+    if (filled) {
+      if (inputYenPerUsd && !(numeric(inputYenPerUsd) > 0) && typeof snapshotFallback.yenPerUsd === "number") {
+        inputYenPerUsd.value = String(snapshotFallback.yenPerUsd);
+      }
+      staleFromSnapshot = String(snapshotFallback.fetchedAt || "");
+    }
+  }
+
   // ₽/¥: приоритетно берём из АТБ; если нет — выводим из ₽/$ и ¥/$.
   const derived = deriveRubPerYenIfPossible() || atbHasRubPerYen;
   if (!derived && inputRubPerYen) {
     // оставляем дефолт, но UI обновим
   }
 
-  setRateDateText("rate-date-common", derived ? commonActualLabel : "—");
+  let dateLabel = commonActualLabel;
+  if (staleFromSnapshot) {
+    const when = formatShortInstantRu(staleFromSnapshot);
+    dateLabel = when ? `${commonActualLabel} · часть курсов от ${when}` : commonActualLabel;
+  }
+  setRateDateText("rate-date-common", derived ? dateLabel : "—");
 
   updateRatesUIFromInputs();
   updateProgressiveSteps();

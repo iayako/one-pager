@@ -59,6 +59,18 @@ $complete =
     && $jpyMnt !== null && $jpyMnt > 0
     && $rubPerEur !== null && $rubPerEur > 0;
 
+/**
+ * Источники, чьи значения перенесены из прошлого снимка (банк был недоступен).
+ * Фронт показывает по ним честную дату, чтобы устаревший курс не выглядел свежим.
+ */
+$staleSources = [];
+foreach (['khan' => $khan, 'atb' => $atb, 'cbr' => $cbr] as $srcKey => $block) {
+    $isStale = ($block['_stale'] ?? false) === true || ($block['stale'] ?? false) === true;
+    if ($isStale) {
+        $staleSources[$srcKey] = (string) ($block['_staleSince'] ?? $block['staleSince'] ?? '');
+    }
+}
+
 echo json_encode([
     'ok' => true,
     'complete' => $complete,
@@ -70,6 +82,7 @@ echo json_encode([
     'rubPerUsd' => $rubPerUsd,
     'rubPerYen' => $rubPerYen,
     'rubPerEur' => $rubPerEur,
+    'staleSources' => $staleSources,
     'meta' => [
         'cacheFile' => basename($file),
         'sources' => [
