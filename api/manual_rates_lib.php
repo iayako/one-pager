@@ -139,6 +139,8 @@ function manual_rates_as_khan_payload(array $manual): array
     return [
         'ok' => true,
         'date' => $manual['date'],
+        'source' => 'manual',
+        'stale' => false,
         'usdNonCashSellMnt' => $manual['usdMnt'],
         'jpyNonCashBuyMnt' => null,
         'jpyNonCashSellMnt' => $manual['jpyMnt'],

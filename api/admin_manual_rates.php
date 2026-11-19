@@ -10,9 +10,9 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/admin_auth.php';
-require_once __DIR__ . '/manual_rates_lib.php';
+require_once __DIR__ . '/khan_rates_lib.php';
 
-/** Последний курс, полученный от самого банка (кэш khan_rates.php), — для сверки в админке. */
+/** Последний автоматический курс для сверки в админке. */
 function manual_rates_bank_reference(): ?array
 {
     $file = __DIR__ . '/cache/khan_last.json';
@@ -24,6 +24,9 @@ function manual_rates_bank_reference(): ?array
     return [
         'usdMnt' => (float) $data['usdMnt'],
         'jpyMnt' => (float) $data['jpyMnt'],
+        'source' => $data['source'] ?? 'Khan Bank',
+        'date' => $data['date'] ?? null,
+        'stale' => !khan_payload_is_current($data, manual_rates_today()),
         'savedAt' => (string) ($data['savedAt'] ?? ''),
     ];
 }

@@ -437,10 +437,11 @@ function renderManualRates(state) {
     stateEl.textContent = "Ручной курс на сегодня не задан — калькулятор берёт курс Khan Bank.";
   }
 
+  const bankSource = bank?.source === "DTA.mn" ? "Khan Bank / ДТА (dta.mn)" : "Khan Bank";
   $("manual-rates-bank").textContent = bank
-    ? `Последний курс, полученный от Khan Bank: $ ${formatNum(bank.usdMnt)} ₮ · ¥ ${formatNum(bank.jpyMnt)} ₮ ` +
-      `(${formatLocalMoment(bank.savedAt)}).`
-    : "Курс от Khan Bank пока не получен.";
+    ? `${bankSource}: $ ${formatNum(bank.usdMnt)} ₮ · ¥ ${formatNum(bank.jpyMnt)} ₮ ` +
+      `(${bank.date || "дата курса неизвестна"}${bank.stale ? ", устарел" : ""}).`
+    : "Автоматический курс Khan Bank пока не получен.";
 
   $("btn-manual-clear").hidden = !active;
 

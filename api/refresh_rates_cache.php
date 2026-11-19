@@ -28,6 +28,8 @@ if (PHP_SAPI !== 'cli') {
     exit(1);
 }
 
+require_once __DIR__ . '/khan_rates_lib.php';
+
 $base = $argv[1] ?? getenv('RATES_BASE_URL') ?: '';
 $base = rtrim(trim($base), '/');
 if ($base === '') {
@@ -39,9 +41,10 @@ $moscowToday = (new DateTimeImmutable('now', new DateTimeZone('Europe/Moscow')))
 $dateSuffix = '?date=' . rawurlencode($moscowToday);
 $nonce = 'ts=' . (string) time();
 
+$khanToday = manual_rates_today();
 $urls = [
     // Только курс банка: ручной курс из админки накладывает rates_snapshot.php при чтении.
-    'khan' => $base . '/api/khan_rates.php' . $dateSuffix . '&source=bank',
+    'khan' => $base . '/api/khan_rates.php?source=bank',
     'atb' => $base . '/api/atb_usd_ulanude.php?' . $nonce,
     'cbr' => $base . '/api/cbr_eur.php' . $dateSuffix,
 ];
@@ -114,6 +117,9 @@ $reused = [];
 foreach ($urls as $key => $url) {
     $fresh = http_get_json($url);
     $freshOk = !isset($fresh['_error']) && (($fresh['ok'] ?? false) === true);
+    if ($key === 'khan') {
+        $freshOk = khan_payload_is_current($fresh, $khanToday);
+    }
     if ($freshOk) {
         $payload[$key] = $fresh;
         continue;

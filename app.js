@@ -621,6 +621,17 @@ function manualRateNote(setAt) {
   return when ? `₮ введён вручную ${when}` : "₮ введён вручную";
 }
 
+function showKhanRateSource(source, date) {
+  const label = document.getElementById("khan-rate-source");
+  const validDate = typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date);
+  if (!validDate || !["Khan Bank", "DTA.mn", "manual"].includes(source)) {
+    label.textContent = "Актуальный курс Khan Bank недоступен";
+    return;
+  }
+  const names = { "Khan Bank": "Khan Bank", "DTA.mn": "Khan Bank / ДТА (dta.mn)", manual: "Ручной курс" };
+  label.textContent = `${names[source]} · ${date.split("-").reverse().join(".")}`;
+}
+
 function staleRatesSuffix(staleSources) {
   if (!staleSources || typeof staleSources !== "object") return "";
   const labels = { khan: "₮", atb: "₽/$", cbr: "₽/€" };
@@ -679,8 +690,7 @@ async function refreshRatesAuto(opts = {}) {
   const inputJpyMnt = document.getElementById("jpy-mnt");
 
   let usedSnapshot = false;
-  // Последний снимок держим под рукой: если живые API недоступны (как при бот-защите Khan
-  // 27.10.2026), показываем из него последние известные курсы вместо прочерков.
+  // Снимок может содержать курсы ЦБ и АТБ при недоступности Khan Bank.
   let snapshotFallback = null;
   try {
     const snapResp = await fetch(
@@ -689,13 +699,14 @@ async function refreshRatesAuto(opts = {}) {
     );
     const snap = await snapResp.json().catch(() => null);
     const age = snap && typeof snap.ageSec === "number" ? snap.ageSec : Infinity;
-    if (snap && snap.ok && snap.complete) {
+    if (snap && snap.ok) {
       snapshotFallback = snap;
     }
     if (
       snap &&
       snap.ok &&
       snap.complete &&
+      snap.khanStale === false &&
       age <= RATES_SNAPSHOT_MAX_AGE_SEC &&
       typeof snap.usdMnt === "number" &&
       typeof snap.jpyMnt === "number" &&
@@ -703,6 +714,7 @@ async function refreshRatesAuto(opts = {}) {
     ) {
       if (inputUsdMnt) inputUsdMnt.value = String(snap.usdMnt);
       if (inputJpyMnt) inputJpyMnt.value = String(snap.jpyMnt);
+      showKhanRateSource(snap.khanSource, snap.khanDate);
       if (inputYenPerUsd && typeof snap.yenPerUsd === "number") inputYenPerUsd.value = String(snap.yenPerUsd);
       if (inputRubPerUsd && typeof snap.rubPerUsd === "number") inputRubPerUsd.value = String(snap.rubPerUsd);
       if (inputRubPerEur) inputRubPerEur.value = String(snap.rubPerEur);
@@ -738,7 +750,7 @@ async function refreshRatesAuto(opts = {}) {
   }
 
   const tasks = [
-    fetch(resolveAppUrl(`api/khan_rates.php${dateSuffix}`), { cache: "no-store" })
+    fetch(resolveAppUrl("api/khan_rates.php"), { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => ({ src: "Khan Bank", data }))
       .catch((e) => ({ src: "Khan Bank", error: e })),
@@ -753,6 +765,19 @@ async function refreshRatesAuto(opts = {}) {
   ];
 
   const results = await Promise.all(tasks);
+  const khan = results[0].data;
+  if (khan?.ok && khan.stale === false && khan.usdMnt > 0 && khan.jpyMnt > 0) {
+    showKhanRateSource(khan.source, khan.date);
+  } else {
+    results[0].data = null;
+    for (const input of [inputUsdMnt, inputJpyMnt, inputYenPerUsd]) {
+      if (input) input.value = "";
+    }
+    showKhanRateSource(null, null);
+    latestCalculationSnapshot = null;
+    document.getElementById("results")?.classList.add("results--hidden");
+    document.getElementById("lead-card")?.classList.add("lead-card--hidden");
+  }
   let atbHasRubPerYen = false;
   // Эндпоинт мог отдать не живой курс банка, а ручной из админки (manual) или свой последний
   // удачный (stale) — подписываем честно, откуда цифра.
@@ -800,15 +825,10 @@ async function refreshRatesAuto(opts = {}) {
       return true;
     };
     const filled = [
-      fillFromSnapshot(inputUsdMnt, snapshotFallback.usdMnt),
-      fillFromSnapshot(inputJpyMnt, snapshotFallback.jpyMnt),
       fillFromSnapshot(inputRubPerEur, snapshotFallback.rubPerEur),
       fillFromSnapshot(inputRubPerUsd, snapshotFallback.rubPerUsd),
     ].some(Boolean);
     if (filled) {
-      if (inputYenPerUsd && !(numeric(inputYenPerUsd) > 0) && typeof snapshotFallback.yenPerUsd === "number") {
-        inputYenPerUsd.value = String(snapshotFallback.yenPerUsd);
-      }
       staleFromSnapshot = String(snapshotFallback.fetchedAt || "");
     }
   }
@@ -1188,7 +1208,9 @@ function wireFormListeners() {
   if (form) {
     form.addEventListener("submit", (e) => {
       e.preventDefault();
-      render(readForm());
+      const data = readForm();
+      if (!(data.usdMnt > 0 && data.jpyMnt > 0)) return;
+      render(data);
       const results = document.getElementById("results");
       if (results) results.classList.remove("results--hidden");
     });

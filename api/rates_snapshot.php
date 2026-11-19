@@ -7,7 +7,9 @@ declare(strict_types=1);
  */
 
 header('Content-Type: application/json; charset=utf-8');
-header('Cache-Control: public, max-age=60');
+header('Cache-Control: no-store');
+
+require_once __DIR__ . '/khan_rates_lib.php';
 
 function json_fail(int $http, string $message): void
 {
@@ -39,15 +41,6 @@ $khan = is_array($data['khan'] ?? null) ? $data['khan'] : [];
 $atb = is_array($data['atb'] ?? null) ? $data['atb'] : [];
 $cbr = is_array($data['cbr'] ?? null) ? $data['cbr'] : [];
 
-$yenPerUsd = isset($khan['yenPerUsd']) && is_numeric($khan['yenPerUsd']) ? (float) $khan['yenPerUsd'] : null;
-$usdMnt = isset($khan['usdMnt']) && is_numeric($khan['usdMnt'])
-    ? (float) $khan['usdMnt']
-    : (isset($khan['usdNonCashSellMnt']) && is_numeric($khan['usdNonCashSellMnt']) ? (float) $khan['usdNonCashSellMnt'] : null);
-$jpyMnt = isset($khan['jpyMnt']) && is_numeric($khan['jpyMnt'])
-    ? (float) $khan['jpyMnt']
-    : (isset($khan['jpyNonCashSellMnt']) && is_numeric($khan['jpyNonCashSellMnt'])
-        ? (float) $khan['jpyNonCashSellMnt']
-        : (isset($khan['jpyNonCashBuyMnt']) && is_numeric($khan['jpyNonCashBuyMnt']) ? (float) $khan['jpyNonCashBuyMnt'] : null));
 $rubPerUsd = isset($atb['rubPerUsd']) && is_numeric($atb['rubPerUsd']) ? (float) $atb['rubPerUsd'] : null;
 $rubPerYen = isset($atb['rubPerYen']) && is_numeric($atb['rubPerYen']) && (float) $atb['rubPerYen'] > 0
     ? (float) $atb['rubPerYen']
@@ -68,16 +61,24 @@ foreach (['khan' => $khan, 'atb' => $atb, 'cbr' => $cbr] as $srcKey => $block) {
 
 // Ручной курс тугрика из админки на сегодня главнее курса банка в снимке.
 // Накладывается при чтении, поэтому действует сразу, не дожидаясь cron, и сам истекает назавтра.
-require_once __DIR__ . '/manual_rates_lib.php';
 $manualInfo = null;
 $manual = manual_rates_active();
 if ($manual !== null) {
-    $usdMnt = $manual['usdMnt'];
-    $jpyMnt = $manual['jpyMnt'];
-    $yenPerUsd = round($manual['usdMnt'] / $manual['jpyMnt'], 4);
-    unset($staleSources['khan']);
+    $khan = manual_rates_as_khan_payload($manual);
     $manualInfo = ['date' => $manual['date'], 'setAt' => $manual['setAt']];
 }
+
+$khanUsable = $manual !== null || khan_payload_is_current($khan, manual_rates_today());
+$khanDate = $khan['date'] ?? null;
+$khanStale = !$khanUsable && ($khanDate !== null || isset($staleSources['khan']));
+if ($khanStale) {
+    $staleSources['khan'] = $khanDate ?? $staleSources['khan'];
+} else {
+    unset($staleSources['khan']);
+}
+$usdMnt = $khanUsable ? khan_positive_rate($khan['usdMnt'] ?? null) : null;
+$jpyMnt = $khanUsable ? khan_positive_rate($khan['jpyMnt'] ?? null) : null;
+$yenPerUsd = $khanUsable ? khan_positive_rate($khan['yenPerUsd'] ?? null) : null;
 
 $complete =
     $usdMnt !== null && $usdMnt > 0
@@ -96,11 +97,14 @@ echo json_encode([
     'rubPerYen' => $rubPerYen,
     'rubPerEur' => $rubPerEur,
     'staleSources' => $staleSources,
+    'khanSource' => $khan['source'] ?? (isset($khan['date']) ? 'Khan Bank' : null),
+    'khanDate' => $khanDate,
+    'khanStale' => $khanStale,
     'manual' => $manualInfo,
     'meta' => [
         'cacheFile' => basename($file),
         'sources' => [
-            'khan' => ($khan['ok'] ?? false) === true,
+            'khan' => $khanUsable,
             'atb' => ($atb['ok'] ?? false) === true,
             'cbr' => ($cbr['ok'] ?? false) === true,
         ],

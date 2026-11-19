@@ -1,0 +1,22 @@
+{
+  "panel": [
+    {
+      "code": "bank.khan.fx.usd.sell_noncash",
+      "data": [
+        ["2026-11-17", 3605, "u6zm7izb"],
+        ["2026-11-18", 3606, "u6h67356"]
+      ],
+      "is_primary": false,
+      "freshness": "fresh"
+    },
+    {
+      "code": "bank.khan.fx.jpy.sell_noncash",
+      "data": [
+        ["2026-11-17", 22.83, "bic75ije"],
+        ["2026-11-18", 22.79, "rfwndhyh"]
+      ],
+      "is_primary": false,
+      "freshness": "fresh"
+    }
+  ]
+}
