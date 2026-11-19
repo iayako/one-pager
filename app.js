@@ -615,6 +615,13 @@ let ratesRefreshInFlight = false;
 /** Как называть источник в подписи: ключи — имена из results живых запросов. */
 const RATE_SOURCE_LABELS = { "Khan Bank": "₮", "АТБ": "₽/$", "ЦБ": "₽/€" };
 
+function showMntRateDate(date, source) {
+  const label = document.getElementById("mnt-rate-date");
+  if (label) {
+    label.textContent = "";
+  }
+}
+
 function staleRatesSuffix(staleSources) {
   if (!staleSources || typeof staleSources !== "object") return "";
   const labels = { khan: "₮", atb: "₽/$", cbr: "₽/€" };
