@@ -615,21 +615,14 @@ let ratesRefreshInFlight = false;
 /** Как называть источник в подписи: ключи — имена из results живых запросов. */
 const RATE_SOURCE_LABELS = { "Khan Bank": "₮", "АТБ": "₽/$", "ЦБ": "₽/€" };
 
-/** Подпись для курса ₮, введённого вручную в админке: «₮ введён вручную 28.10 09:12». */
-function manualRateNote(setAt) {
-  const when = setAt ? formatShortInstantRu(String(setAt)) : "";
-  return when ? `₮ введён вручную ${when}` : "₮ введён вручную";
-}
-
-function showKhanRateSource(source, date) {
-  const label = document.getElementById("khan-rate-source");
-  const validDate = typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date);
-  if (!validDate || !["Khan Bank", "DTA.mn", "manual"].includes(source)) {
-    label.textContent = "Актуальный курс Khan Bank недоступен";
+function showMntRateDate(date, source) {
+  const label = document.getElementById("mnt-rate-date");
+  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    label.textContent = "Актуальный курс тугрика недоступен";
     return;
   }
-  const names = { "Khan Bank": "Khan Bank", "DTA.mn": "Khan Bank / ДТА (dta.mn)", manual: "Ручной курс" };
-  label.textContent = `${names[source]} · ${date.split("-").reverse().join(".")}`;
+  const attribution = source === "DTA.mn" ? " · Khan Bank / ДТА (dta.mn)" : "";
+  label.textContent = `Курс тугрика на ${date.split("-").reverse().join(".")}${attribution}`;
 }
 
 function staleRatesSuffix(staleSources) {
@@ -714,7 +707,7 @@ async function refreshRatesAuto(opts = {}) {
     ) {
       if (inputUsdMnt) inputUsdMnt.value = String(snap.usdMnt);
       if (inputJpyMnt) inputJpyMnt.value = String(snap.jpyMnt);
-      showKhanRateSource(snap.khanSource, snap.khanDate);
+      showMntRateDate(snap.khanDate, snap.khanSource);
       if (inputYenPerUsd && typeof snap.yenPerUsd === "number") inputYenPerUsd.value = String(snap.yenPerUsd);
       if (inputRubPerUsd && typeof snap.rubPerUsd === "number") inputRubPerUsd.value = String(snap.rubPerUsd);
       if (inputRubPerEur) inputRubPerEur.value = String(snap.rubPerEur);
@@ -732,10 +725,9 @@ async function refreshRatesAuto(opts = {}) {
         snap.fetchedAt && String(snap.fetchedAt).trim() !== ""
           ? formatInstantRuWithTimeZone(String(snap.fetchedAt).trim())
           : commonActualLabel;
-      const manualSuffix = snap.manual ? ` · ${manualRateNote(snap.manual.setAt)}` : "";
       setRateDateText(
         "rate-date-common",
-        derived ? snapLabel + manualSuffix + staleRatesSuffix(snap.staleSources) : "—"
+        derived ? snapLabel + staleRatesSuffix(snap.staleSources) : "—"
       );
       updateProgressiveSteps();
       usedSnapshot = true;
@@ -767,27 +759,24 @@ async function refreshRatesAuto(opts = {}) {
   const results = await Promise.all(tasks);
   const khan = results[0].data;
   if (khan?.ok && khan.stale === false && khan.usdMnt > 0 && khan.jpyMnt > 0) {
-    showKhanRateSource(khan.source, khan.date);
+    showMntRateDate(khan.date, khan.source);
   } else {
     results[0].data = null;
     for (const input of [inputUsdMnt, inputJpyMnt, inputYenPerUsd]) {
       if (input) input.value = "";
     }
-    showKhanRateSource(null, null);
+    showMntRateDate(null, null);
     latestCalculationSnapshot = null;
     document.getElementById("results")?.classList.add("results--hidden");
     document.getElementById("lead-card")?.classList.add("lead-card--hidden");
   }
   let atbHasRubPerYen = false;
-  // Эндпоинт мог отдать не живой курс банка, а ручной из админки (manual) или свой последний
-  // удачный (stale) — подписываем честно, откуда цифра.
+  // Для перенесённых курсов ЦБ и АТБ показываем дату предыдущего значения.
   const liveRateNotes = [];
 
   for (const r of results) {
     if (r && r.data && r.data.ok) {
-      if (r.data.manual === true) {
-        liveRateNotes.push(manualRateNote(r.data.manualSetAt));
-      } else if (r.data.stale === true && r.data.staleSince) {
+      if (r.data.stale === true && r.data.staleSince) {
         const label = RATE_SOURCE_LABELS[r.src] || r.src;
         const when = formatShortInstantRu(String(r.data.staleSince));
         if (when) liveRateNotes.push(`${label} от ${when}`);
