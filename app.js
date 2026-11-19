@@ -615,16 +615,6 @@ let ratesRefreshInFlight = false;
 /** Как называть источник в подписи: ключи — имена из results живых запросов. */
 const RATE_SOURCE_LABELS = { "Khan Bank": "₮", "АТБ": "₽/$", "ЦБ": "₽/€" };
 
-function showMntRateDate(date, source) {
-  const label = document.getElementById("mnt-rate-date");
-  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    label.textContent = "Актуальный курс тугрика недоступен";
-    return;
-  }
-  const attribution = source === "DTA.mn" ? " · Khan Bank / ДТА (dta.mn)" : "";
-  label.textContent = `Курс тугрика на ${date.split("-").reverse().join(".")}${attribution}`;
-}
-
 function staleRatesSuffix(staleSources) {
   if (!staleSources || typeof staleSources !== "object") return "";
   const labels = { khan: "₮", atb: "₽/$", cbr: "₽/€" };
